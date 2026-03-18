@@ -1,4 +1,10 @@
 import './style.css';
+import { uiManager } from './ui/UIManager';
+import { bindSilentReauth } from './utils/permission';
+
+bindSilentReauth();
+
+(window as any).uiManager = uiManager;
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   <div class="top-app-bar">
