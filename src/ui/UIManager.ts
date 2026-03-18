@@ -264,14 +264,12 @@ export class UIManager {
       // 1. Drain user queue first (Spotify-style "Next in Queue")
       if (this.userQueue.length > 0) {
           const nextTrack = this.userQueue.shift()!;
-          // Find its index in playlist if it exists, otherwise just play it directly
-          const foundIdx = this.currentPlaylistTracks.findIndex(t => t.id === nextTrack.id);
-          if (foundIdx >= 0) {
-              this.playTrack(foundIdx, this.currentPlaylistTracks);
-          } else {
-              // Track isn't in playlist (edge case), play it standalone
-              prismPlayer.playTrack(nextTrack);
-              this.updatePlayerUI(nextTrack);
+          // Play it directly — don't search playlist (the same song could be in both)
+          prismPlayer.playTrack(nextTrack);
+          this.updatePlayerUI(nextTrack);
+          // Don't change currentTrackIndex — so playlist resumes from the right spot after
+          if (this.queueOverlay.classList.contains('open')) {
+              this.renderQueue();
           }
           return;
       }

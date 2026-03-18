@@ -82,9 +82,10 @@ export class PrismPlayer {
 
   private async playNextPrepared() {
     if (!this.standbyUrl || !this.nextTrack) {
-        this.isPlaying = false;
-        this.onPlayStateChange(false);
-        return; // Nothing to play next
+        // No preloaded track — delegate to UIManager to decide what plays next
+        // (handles user queue, shuffle, repeat, etc.)
+        this.onRequestSkipNext();
+        return;
     }
 
     // Swap buffers
