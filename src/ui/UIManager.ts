@@ -119,6 +119,9 @@ export class UIManager {
       this.fullPlayPause.innerHTML = `<span class="material-symbols-rounded">${icon}</span>`;
     };
 
+    prismPlayer.onRequestSkipNext = () => this.playNext();
+    prismPlayer.onRequestSkipPrev = () => this.playPrev();
+
     // Queue Overlay
     document.getElementById('btn-open-queue')?.addEventListener('click', () => {
         this.renderQueue();
@@ -155,8 +158,14 @@ export class UIManager {
     this.miniPlayPause.addEventListener('click', togglePlay);
     this.fullPlayPause.addEventListener('click', togglePlay);
 
-    const skipNext = () => prismPlayer.requestSkipNext(async () => this.playNext());
-    const skipPrev = () => prismPlayer.requestSkipNext(async () => this.playPrev());
+    const skipNext = () => prismPlayer.requestSkipNext(async () => {
+        if (navigator.vibrate) navigator.vibrate(15);
+        this.playNext();
+    });
+    const skipPrev = () => prismPlayer.requestSkipNext(async () => {
+        if (navigator.vibrate) navigator.vibrate(15);
+        this.playPrev();
+    });
     
     this.fullNext.addEventListener('click', skipNext);
     this.fullPrev.addEventListener('click', skipPrev);
@@ -337,8 +346,8 @@ export class UIManager {
                      <div class="m3-list-title text-ellipsis">${track.title}</div>
                      <div class="m3-list-subtitle text-ellipsis">${track.artist}</div>
                  </div>
-                 <button class="icon-btn">
-                    <span class="material-symbols-rounded">more_vert</span>
+                 <button class="icon-btn btn-delete-track" data-trackid="${track.id}" data-idx="${idx}">
+                    <span class="material-symbols-rounded">delete</span>
                  </button>
              </div>
           `;
@@ -374,9 +383,41 @@ export class UIManager {
       // Track clicks
       const rows = this.viewLayer.querySelectorAll('.m3-list-item');
       rows.forEach(row => {
-          row.addEventListener('click', () => {
+          row.addEventListener('click', (e) => {
+              if ((e.target as HTMLElement).closest('.btn-delete-track')) return; 
               const idx = parseInt(row.getAttribute('data-idx')!, 10);
               this.playTrack(idx, tracks);
+          });
+      });
+
+      // Delete Track Logic
+      const deleteBtns = this.viewLayer.querySelectorAll('.btn-delete-track');
+      deleteBtns.forEach(btn => {
+          btn.addEventListener('click', async () => {
+              const trackId = btn.getAttribute('data-trackid')!;
+              if (confirm('Delete this track from your library?')) {
+                  const dbReq = indexedDB.open('prism-audio-db');
+                  dbReq.onsuccess = (ev) => {
+                      const db = (ev.target as IDBOpenDBRequest).result;
+                      const tx = db.transaction(['tracks', 'playlists'], 'readwrite');
+                      tx.objectStore('tracks').delete(trackId);
+                      
+                      // Remove from playlists
+                      const pTx = tx.objectStore('playlists');
+                      const pReq = pTx.get(playlistId);
+                      pReq.onsuccess = () => {
+                          if (pReq.result) {
+                              const newTrackIds = pReq.result.trackIds.filter((id: string) => id !== trackId);
+                              pReq.result.trackIds = newTrackIds;
+                              pTx.put(pReq.result);
+                          }
+                      };
+                      
+                      tx.oncomplete = () => {
+                          this.renderPlaylist(playlistId); // Refresh UI
+                      };
+                  };
+              }
           });
       });
 

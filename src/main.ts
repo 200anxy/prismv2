@@ -96,22 +96,26 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
     <div class="settings-content">
       <div class="settings-group">
         <h2>Data & Storage</h2>
-        <div class="settings-item" id="btn-clear-db">
-          <div class="settings-item-text">
-            <span>Clear Library Data</span>
-            <small>Removes all tracks and metadata from local storage</small>
+        <div class="settings-card">
+          <div class="settings-item" id="btn-clear-db">
+            <div class="settings-item-text">
+              <span>Clear Library Data</span>
+              <small>Removes all tracks and metadata</small>
+            </div>
+            <span class="material-symbols-rounded">delete</span>
           </div>
-          <span class="material-symbols-rounded">delete</span>
         </div>
       </div>
       <div class="settings-group">
         <h2>About</h2>
-        <div class="settings-item">
-          <div class="settings-item-text">
-            <span>Prism PWA</span>
-            <small>Version 1.0.0 • Material 3 Expressive Edition</small>
+        <div class="settings-card">
+          <div class="settings-item">
+            <div class="settings-item-text">
+              <span>Prism PWA</span>
+              <small>Version 1.0.0 • Material 3 Expressive</small>
+            </div>
+            <span class="material-symbols-rounded">info</span>
           </div>
-          <span class="material-symbols-rounded">info</span>
         </div>
       </div>
     </div>

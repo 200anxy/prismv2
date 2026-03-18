@@ -15,6 +15,9 @@ export class PrismPlayer {
   public onTimeUpdate: (currentTime: number, duration: number) => void = () => {};
   public onTrackChange: (track: TrackData) => void = () => {};
   public onPlayStateChange: (isPlaying: boolean) => void = () => {};
+  
+  public onRequestSkipNext: () => void = () => {};
+  public onRequestSkipPrev: () => void = () => {};
 
   constructor() {
     this.activeAudio = new Audio();
@@ -123,6 +126,8 @@ export class PrismPlayer {
       this.activeAudio.onpause = () => this.updatePlayState(false);
   }
 
+
+
   public togglePlay() {
     if (this.isPlaying) {
       this.activeAudio.pause();
@@ -164,6 +169,14 @@ export class PrismPlayer {
 
           navigator.mediaSession.setActionHandler('play', () => this.activeAudio.play());
           navigator.mediaSession.setActionHandler('pause', () => this.activeAudio.pause());
+          navigator.mediaSession.setActionHandler('nexttrack', () => {
+             if (navigator.vibrate) navigator.vibrate(15);
+             this.onRequestSkipNext();
+          });
+          navigator.mediaSession.setActionHandler('previoustrack', () => {
+             if (navigator.vibrate) navigator.vibrate(15);
+             this.onRequestSkipPrev();
+          });
       }
   }
 
