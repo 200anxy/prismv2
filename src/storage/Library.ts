@@ -58,27 +58,46 @@ export class LibraryManager {
     }
   }
 
-  // File System Access API for Desktop (Persists handles)
+  // File System Access API for Desktop (Persists handles), Fallback for mobile
   async showDirectoryPicker() {
-    try {
-      // @ts-ignore - TS doesn't have full types for File System Access API by default
-      const dirHandle = await window.showDirectoryPicker();
-      const files: File[] = [];
-      
-      // @ts-ignore
-      for await (const entry of dirHandle.values()) {
-        if (entry.kind === 'file') {
-          const file = await entry.getFile();
-          files.push(file);
+    if ('showDirectoryPicker' in window) {
+      try {
+        // @ts-ignore
+        const dirHandle = await window.showDirectoryPicker();
+        const files: File[] = [];
+        
+        // @ts-ignore
+        for await (const entry of dirHandle.values()) {
+          if (entry.kind === 'file') {
+            const file = await entry.getFile();
+            files.push(file);
+          }
+        }
+
+        await this.processFiles(files, dirHandle.name);
+
+      } catch (err: any) {
+        if (err.name !== 'AbortError') {
+          console.error('Error selecting directory:', err);
         }
       }
-
-      await this.processFiles(files, dirHandle.name);
-
-    } catch (err: any) {
-      if (err.name !== 'AbortError') {
-        console.error('Error selecting directory:', err);
-      }
+    } else {
+      // Mobile / Safari / Firefox Fallback
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.webkitdirectory = true;
+      input.multiple = true;
+      
+      input.onchange = async () => {
+        const files = Array.from(input.files || []);
+        if (files.length > 0) {
+           const pathParts = files[0].webkitRelativePath.split('/');
+           const folderName = pathParts.length > 1 ? pathParts[0] : 'Imported Folder';
+           await this.processFiles(files, folderName);
+        }
+      };
+      
+      input.click();
     }
   }
 }

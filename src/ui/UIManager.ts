@@ -10,10 +10,15 @@ export class UIManager {
   private btnPlayPause!: HTMLButtonElement;
   private btnPrev!: HTMLButtonElement;
   private btnNext!: HTMLButtonElement;
-  private progressBar!: HTMLElement;
+  
+  private progressWrapper!: HTMLElement;
   private progressFill!: HTMLElement;
   private timeCurrent!: HTMLElement;
   private timeTotal!: HTMLElement;
+
+  private playerTitle!: HTMLElement;
+  private playerArtist!: HTMLElement;
+  private playerArt!: HTMLElement;
 
   private currentPlaylistTracks: TrackData[] = [];
   private currentTrackIndex: number = -1;
@@ -30,23 +35,27 @@ export class UIManager {
     this.btnPrev = document.getElementById('btn-prev') as HTMLButtonElement;
     this.btnNext = document.getElementById('btn-next') as HTMLButtonElement;
     
-    this.progressBar = document.getElementById('progress-bar')!;
+    this.progressWrapper = document.getElementById('progress-wrapper')!;
     this.progressFill = document.getElementById('progress-fill')!;
     this.timeCurrent = document.getElementById('time-current')!;
     this.timeTotal = document.getElementById('time-total')!;
+
+    this.playerTitle = document.getElementById('player-title')!;
+    this.playerArtist = document.getElementById('player-artist')!;
+    this.playerArt = document.getElementById('player-art')!;
 
     this.bindEvents();
     this.renderLibrary();
   }
 
   private bindEvents() {
-    // Top Bar
-    document.getElementById('btn-library')?.addEventListener('click', () => this.renderLibrary());
+    document.getElementById('btn-library')?.addEventListener('click', () => {
+        document.getElementById('top-title')!.innerText = 'Library';
+        this.renderLibrary();
+    });
 
-    // Library Events
     libraryManager.onLibraryUpdated = () => this.renderLibrary();
     
-    // Player Events
     prismPlayer.onPlayStateChange = (playing) => {
       this.btnPlayPause.innerHTML = `<span class="material-symbols-rounded">${playing ? 'pause' : 'play_arrow'}</span>`;
     };
@@ -71,14 +80,13 @@ export class UIManager {
         });
     });
     this.btnPrev.addEventListener('click', () => {
-        // Debounce not as critical for prev, but keeps it uniform
         prismPlayer.requestSkipNext(async () => {
              this.playPrev();
         });
     });
 
-    this.progressBar.addEventListener('click', (e) => {
-      const rect = this.progressBar.getBoundingClientRect();
+    this.progressWrapper.addEventListener('click', (e) => {
+      const rect = this.progressWrapper.getBoundingClientRect();
       const pct = (e.clientX - rect.left) / rect.width;
       prismPlayer.seek(pct);
     });
@@ -90,11 +98,21 @@ export class UIManager {
     return `${min}:${sec.toString().padStart(2, '0')}`;
   }
 
-  private updatePlayerUI(track:TrackData) {
+  private updatePlayerUI(track: TrackData) {
+     this.playerTitle.innerText = track.title;
+     this.playerArtist.innerText = track.artist;
+
+     if (track.hasArtwork && track.artworkBlob) {
+         const url = URL.createObjectURL(track.artworkBlob);
+         this.playerArt.innerHTML = `<img src="${url}" alt="Album Art" />`;
+     } else {
+         this.playerArt.innerHTML = `<span class="material-symbols-rounded" style="color: var(--text-secondary); font-size: 28px;">music_note</span>`;
+     }
+
      if (track.dominantColor) {
-         // Update the lush gradient via CSS variables
-         document.documentElement.style.setProperty('--md-sys-color-primary-container', track.dominantColor);
-         this.ambientOverlay.style.background = `radial-gradient(circle at 50% 0%, ${track.dominantColor} 0%, transparent 70%)`;
+         document.documentElement.style.setProperty('--accent-glow', track.dominantColor);
+         document.documentElement.style.setProperty('--accent-color', track.dominantColor);
+         this.ambientOverlay.style.background = `radial-gradient(circle at 50% -20%, ${track.dominantColor} 0%, transparent 80%)`;
      }
   }
 
@@ -110,7 +128,7 @@ export class UIManager {
   private playNext() {
       if (this.currentPlaylistTracks.length === 0) return;
       let nextIdx = this.currentTrackIndex + 1;
-      if (nextIdx >= this.currentPlaylistTracks.length) nextIdx = 0; // loop
+      if (nextIdx >= this.currentPlaylistTracks.length) nextIdx = 0;
       this.playTrack(nextIdx, this.currentPlaylistTracks);
   }
 
@@ -128,47 +146,44 @@ export class UIManager {
     
     if (playlists.length === 0) {
       this.viewLayer.innerHTML = `
-        <div style="text-align: center; color: var(--md-sys-color-on-surface-variant); margin-top: 40px; display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%;">
-          <span class="material-symbols-rounded" style="font-size: 48px; margin-bottom: 16px;">library_music</span>
-          <p>No folders loaded.</p>
-          <button id="btn-add-folder" style="margin-top:20px; padding: 12px 24px; border-radius: 24px; background: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); border:none; font-weight:600; font-size: 16px; cursor: pointer;">Add Music Folder</button>
+        <div style="text-align: center; color: var(--text-secondary); margin-top: 20vh; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+          <span class="material-symbols-rounded" style="font-size: 64px; margin-bottom: 24px; opacity: 0.5;">library_music</span>
+          <h2 style="color: var(--text-primary); margin-bottom: 8px; font-weight: 600;">Your Library is Empty</h2>
+          <p style="margin-bottom: 24px;">Add a local folder to start listening.</p>
+          <button id="btn-add-folder" style="padding: 14px 32px; border-radius: 30px; background: var(--text-primary); color: var(--bg-color); border:none; font-weight:700; font-size: 1rem; cursor: pointer; transition: transform 0.2s;">
+            Browse Files
+          </button>
         </div>
       `;
       document.getElementById('btn-add-folder')?.addEventListener('click', () => libraryManager.showDirectoryPicker());
       return;
     }
 
-    let html = `<div style="padding-bottom: 20px;">
-        <h2 style="margin:0 0 16px 0; font-weight: 500;">Folders as Playlists</h2>
-        <div style="display: flex; flex-direction:column; gap:8px;">
+    let html = `
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+        <h2 style="font-size: 1.5rem; font-weight: 700;">Playlists</h2>
+        <button id="btn-add-folder-small" class="icon-btn" style="background: var(--surface-variant);">
+          <span class="material-symbols-rounded">add</span>
+        </button>
+      </div>
+      <div class="grid-container">
     `;
 
     playlists.forEach(p => {
         html += `
-          <div class="playlist-card" data-id="${p.id}" style="
-            background: var(--md-sys-color-surface-variant); 
-            padding: 16px; 
-            border-radius: 16px; 
-            display:flex; 
-            align-items:center; 
-            gap:16px; 
-            cursor:pointer;">
-            <div style="width: 48px; height: 48px; background: var(--md-sys-color-surface); border-radius: 8px; display:flex; align-items:center; justify-content:center;">
-                <span class="material-symbols-rounded">folder</span>
+          <div class="playlist-card" data-id="${p.id}">
+            <div class="playlist-card-art">
+                <span class="material-symbols-rounded">folder_open</span>
             </div>
-            <div style="flex:1;">
-                <div style="font-weight: 500; font-size: 1rem;">${p.name}</div>
-                <div style="font-size: 0.8rem; color: var(--md-sys-color-on-surface-variant);">${p.trackIds.length} tracks</div>
+            <div class="playlist-info">
+                <h3 class="text-ellipsis">${p.name}</h3>
+                <p>${p.trackIds.length} tracks</p>
             </div>
           </div>
         `;
     });
 
-    html += `</div>
-      <button id="btn-add-folder-small" style="margin-top:24px; padding: 8px 16px; border-radius: 20px; background: transparent; color: var(--md-sys-color-primary); border: 1px solid var(--md-sys-color-primary); font-weight:600; display:flex; align-items:center; gap:8px; cursor:pointer;">
-        <span class="material-symbols-rounded" style="font-size:20px;">add</span> Add Another Folder
-      </button>
-    </div>`;
+    html += `</div>`;
     
     this.viewLayer.innerHTML = html;
     
@@ -178,6 +193,8 @@ export class UIManager {
     cards.forEach(card => {
         card.addEventListener('click', () => {
             const id = card.getAttribute('data-id')!;
+            // Set nav title natively or use state
+            document.getElementById('top-title')!.innerText = 'Playlist';
             this.renderPlaylist(id);
         });
     });
@@ -186,31 +203,26 @@ export class UIManager {
   public async renderPlaylist(playlistId: string) {
       const tracks = await libraryManager.getTracksForPlaylist(playlistId);
       
-      let html = `<div style="padding-bottom: 80px;">
-        <button id="btn-back" style="background:transparent; border:none; color:var(--md-sys-color-on-surface); padding:8px 0; display:flex; align-items:center; cursor:pointer; margin-bottom:16px;">
-            <span class="material-symbols-rounded">arrow_back</span>
-            <span style="font-size:16px; font-weight:500;">Back to Library</span>
-        </button>
-      `;
+      let html = `<div class="track-list">`;
 
       tracks.forEach((track, idx) => {
           html += `
-             <div class="track-row" data-idx="${idx}" style="
-                 display:flex; align-items:center; gap: 16px; padding: 12px; border-radius: 8px; cursor:pointer;">
-                 <div class="art-container lazy-art" data-trackid="${track.id}" style="width: 40px; height: 40px; border-radius: 4px; background: var(--md-sys-color-surface-variant); display:flex; align-items:center; justify-content:center; overflow:hidden;">
-                    <span class="material-symbols-rounded fallback-icon" style="font-size: 20px; color: var(--md-sys-color-on-surface-variant);">music_note</span>
+             <div class="track-row" data-idx="${idx}">
+                 <div class="art-container lazy-art" data-trackid="${track.id}">
+                    <span class="material-symbols-rounded fallback-icon" style="color: var(--text-secondary);">music_note</span>
                  </div>
-                 <div style="flex:1; overflow:hidden;">
-                     <div style="font-size: 0.95rem; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${track.title}</div>
-                     <div style="font-size: 0.8rem; color:var(--md-sys-color-on-surface-variant); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${track.artist}</div>
+                 <div style="flex:1; overflow:hidden; display: flex; flex-direction: column; justify-content: center;">
+                     <div class="text-ellipsis" style="font-size: 1rem; font-weight: 500; color: var(--text-primary); margin-bottom: 2px;">${track.title}</div>
+                     <div class="text-ellipsis" style="font-size: 0.85rem; color: var(--text-secondary);">${track.artist}</div>
                  </div>
+                 <button class="icon-btn" style="opacity: 0.5;">
+                    <span class="material-symbols-rounded">more_vert</span>
+                 </button>
              </div>
           `;
       });
       html += `</div>`;
       this.viewLayer.innerHTML = html;
-
-      document.getElementById('btn-back')?.addEventListener('click', () => this.renderLibrary());
 
       // Track clicks
       const rows = this.viewLayer.querySelectorAll('.track-row');
@@ -221,7 +233,6 @@ export class UIManager {
           });
       });
 
-      // Implement Asset Fallbacks / Intersection Observer for Lazy Artwork
       this.attachLazyArtwork(tracks);
   }
 
@@ -235,22 +246,17 @@ export class UIManager {
                   
                   if (track && track.hasArtwork && track.artworkBlob) {
                       const img = document.createElement('img');
-                      img.style.width = '100%';
-                      img.style.height = '100%';
-                      img.style.objectFit = 'cover';
                       img.onload = () => {
                           const existingIcon = target.querySelector('.fallback-icon');
                           if (existingIcon) existingIcon.remove();
                           target.appendChild(img);
                       };
-                      // Revocation happens automatically on new blobs in this simplified flow, 
-                      // but typically should track object URLs. We can rely on GC for short lifespans or keep mapping.
                       img.src = URL.createObjectURL(track.artworkBlob);
                   }
                   obs.unobserve(target);
               }
           });
-      }, { root: this.viewLayer, rootMargin: '0px 0px 100px 0px' });
+      }, { root: this.viewLayer, rootMargin: '0px 0px 200px 0px' });
 
       const arts = this.viewLayer.querySelectorAll('.lazy-art');
       arts.forEach(art => observer.observe(art));
