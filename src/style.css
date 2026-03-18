@@ -265,11 +265,7 @@ body {
               opacity calc(var(--md-sys-motion-duration-long) / 2) ease;
 }
 
-.mini-player.hidden {
-  transform: translateY(120px);
-  opacity: 0;
-  pointer-events: none;
-}
+/* Removed .mini-player.hidden to keep it persistent */
 
 .mini-player-art {
   width: 48px;
@@ -518,3 +514,75 @@ body {
 
 .settings-item-text span { font-size: 1rem; color: var(--md-sys-color-on-background); }
 .settings-item-text small { font-size: 0.875rem; color: var(--md-sys-color-on-surface-variant); margin-top: 4px; }
+
+/* Playlist Header Specifics */
+.playlist-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.playlist-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Queue Overlay */
+.queue-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: var(--md-sys-color-background);
+  z-index: 250; /* Middle of Full Player and Settings */
+  display: flex;
+  flex-direction: column;
+  transform: translateY(100%);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform var(--md-sys-motion-duration-long) var(--md-sys-motion-easing-emphasized),
+              opacity var(--md-sys-motion-duration-long) var(--md-sys-motion-easing-emphasized);
+}
+
+.queue-overlay.open {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.queue-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  height: 64px;
+  background-color: var(--md-sys-color-surface-container);
+}
+
+.queue-content {
+  padding: 16px 16px 90px 16px; /* space for mini player */
+  flex: 1;
+  overflow-y: auto;
+}
+
+.queue-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--md-sys-color-surface-container-high);
+}
+
+.queue-item.active {
+  background-color: var(--md-sys-color-surface-container);
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.queue-item-actions {
+  display: flex;
+  gap: 4px;
+}
+

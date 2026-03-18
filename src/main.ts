@@ -22,13 +22,13 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   </div>
 
   <!-- Mini Player (Floating at bottom) -->
-  <div class="mini-player hidden" id="mini-player">
+  <div class="mini-player" id="mini-player">
     <div class="mini-player-art" id="mini-art">
        <span class="material-symbols-rounded" style="color: var(--md-sys-color-on-surface-variant);">music_note</span>
     </div>
     <div class="mini-player-info">
-      <div class="mini-player-title text-ellipsis" id="mini-title">Not Playing</div>
-      <div class="mini-player-artist text-ellipsis" id="mini-artist">-</div>
+      <div class="mini-player-title text-ellipsis" id="mini-title">No Song Playing</div>
+      <div class="mini-player-artist text-ellipsis" id="mini-artist">Select a track to play</div>
     </div>
     <button class="fab-play" id="mini-play-pause">
       <span class="material-symbols-rounded">play_arrow</span>
@@ -42,8 +42,8 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
         <span class="material-symbols-rounded">expand_more</span>
       </button>
       <div class="label-medium">Now Playing</div>
-      <button class="icon-btn" style="opacity: 0;">
-        <span class="material-symbols-rounded">more_vert</span>
+      <button class="icon-btn" id="btn-open-queue">
+        <span class="material-symbols-rounded">queue_music</span>
       </button>
     </div>
 
@@ -118,6 +118,20 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
           <span class="material-symbols-rounded">info</span>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- Queue Overlay -->
+  <div class="queue-overlay" id="queue-overlay">
+    <div class="queue-nav">
+      <h1 class="title-large" style="margin-left: 16px;">Up Next</h1>
+      <button class="icon-btn" id="btn-close-queue">
+        <span class="material-symbols-rounded">close</span>
+      </button>
+    </div>
+    <div class="queue-content" id="queue-list">
+      <!-- Queue items injected here -->
+      <div style="text-align:center; margin-top:40px; color:var(--md-sys-color-on-surface-variant);">No upcoming tracks</div>
     </div>
   </div>
 `;

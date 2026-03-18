@@ -10,6 +10,8 @@ export class UIManager {
   private miniPlayer!: HTMLElement;
   private fullPlayer!: HTMLElement;
   private settingsOverlay!: HTMLElement;
+  private queueOverlay!: HTMLElement;
+  private queueList!: HTMLElement;
   
   private miniTitle!: HTMLElement;
   private miniArtist!: HTMLElement;
@@ -47,6 +49,8 @@ export class UIManager {
     this.miniPlayer = document.getElementById('mini-player')!;
     this.fullPlayer= document.getElementById('full-player')!;
     this.settingsOverlay = document.getElementById('settings-overlay')!;
+    this.queueOverlay = document.getElementById('queue-overlay')!;
+    this.queueList = document.getElementById('queue-list')!;
 
     // Mini
     this.miniTitle = document.getElementById('mini-title')!;
@@ -114,8 +118,20 @@ export class UIManager {
       this.fullPlayPause.innerHTML = `<span class="material-symbols-rounded">${icon}</span>`;
     };
 
+    // Queue Overlay
+    document.getElementById('btn-open-queue')?.addEventListener('click', () => {
+        this.renderQueue();
+        this.queueOverlay.classList.add('open');
+    });
+    document.getElementById('btn-close-queue')?.addEventListener('click', () => {
+        this.queueOverlay.classList.remove('open');
+    });
+
     prismPlayer.onTrackChange = (track) => {
       this.updatePlayerUI(track);
+      if (this.queueOverlay.classList.contains('open')) {
+          this.renderQueue();
+      }
     };
 
     prismPlayer.onTimeUpdate = (current, total) => {
@@ -284,7 +300,17 @@ export class UIManager {
   public async renderPlaylist(playlistId: string) {
       const tracks = await libraryManager.getTracksForPlaylist(playlistId);
       
-      let html = `<div style="display: flex; flex-direction: column;">`;
+      let html = `
+        <div class="playlist-header">
+           <button class="fab-play fab-play-huge" id="btn-playlist-play" style="width: 56px; height: 56px; border-radius: 16px;">
+              <span class="material-symbols-rounded" style="font-size: 32px">play_arrow</span>
+           </button>
+           <button class="extended-fab" id="btn-playlist-shuffle" style="padding: 12px 20px;">
+              <span class="material-symbols-rounded">shuffle</span> Shuffle
+           </button>
+        </div>
+        <div style="display: flex; flex-direction: column;">
+      `;
 
       tracks.forEach((track, idx) => {
           html += `
@@ -304,6 +330,24 @@ export class UIManager {
       });
       html += `</div>`;
       this.viewLayer.innerHTML = html;
+
+      // Header Actions
+      document.getElementById('btn-playlist-play')?.addEventListener('click', () => {
+          if (tracks.length > 0) {
+              this.isShuffle = false;
+              this.btnShuffle.classList.remove('active');
+              this.playTrack(0, tracks);
+          }
+      });
+
+      document.getElementById('btn-playlist-shuffle')?.addEventListener('click', () => {
+          if (tracks.length > 0) {
+              this.isShuffle = true;
+              this.btnShuffle.classList.add('active');
+              const randIdx = Math.floor(Math.random() * tracks.length);
+              this.playTrack(randIdx, tracks);
+          }
+      });
 
       // Track clicks
       const rows = this.viewLayer.querySelectorAll('.m3-list-item');
@@ -341,6 +385,78 @@ export class UIManager {
 
       const arts = this.viewLayer.querySelectorAll('.lazy-art');
       arts.forEach(art => observer.observe(art));
+  }
+
+  // --- Queue ---
+  private renderQueue() {
+      if (this.currentPlaylistTracks.length === 0) {
+          this.queueList.innerHTML = `<div style="text-align:center; margin-top:40px; color:var(--md-sys-color-on-surface-variant);">No upcoming tracks</div>`;
+          return;
+      }
+
+      let html = `<div style="display:flex; flex-direction:column; gap:4px;">`;
+      
+      this.currentPlaylistTracks.forEach((track, idx) => {
+          const isActive = idx === this.currentTrackIndex;
+          html += `
+             <div class="queue-item ${isActive ? 'active' : ''}">
+                 <div style="flex:1; overflow:hidden; display:flex; flex-direction:column;" class="text-ellipsis">
+                     <span style="font-size:0.95rem; font-weight: ${isActive ? '500' : '400'}; color: var(--md-sys-color-on-background);">${track.title}</span>
+                     <span style="font-size:0.75rem; color: var(--md-sys-color-on-surface-variant);">${track.artist}</span>
+                 </div>
+                 <div class="queue-item-actions">
+                    <button class="icon-btn btn-q-up" data-idx="${idx}" style="width:36px; height:36px;">
+                       <span class="material-symbols-rounded">arrow_upward</span>
+                    </button>
+                    <button class="icon-btn btn-q-down" data-idx="${idx}" style="width:36px; height:36px;">
+                       <span class="material-symbols-rounded">arrow_downward</span>
+                    </button>
+                    ${isActive ? `<span class="material-symbols-rounded" style="color:var(--accent-color); margin-left:8px;">volume_up</span>` : ''}
+                 </div>
+             </div>
+          `;
+      });
+      
+      html += `</div>`;
+      this.queueList.innerHTML = html;
+
+      // Bind reordering
+      this.queueList.querySelectorAll('.btn-q-up').forEach(btn => {
+          btn.addEventListener('click', () => {
+              const idx = parseInt((btn as HTMLElement).getAttribute('data-idx')!, 10);
+              if (idx > 0) this.moveQueueItem(idx, idx - 1);
+          });
+      });
+
+      this.queueList.querySelectorAll('.btn-q-down').forEach(btn => {
+          btn.addEventListener('click', () => {
+              const idx = parseInt((btn as HTMLElement).getAttribute('data-idx')!, 10);
+              if (idx < this.currentPlaylistTracks.length - 1) this.moveQueueItem(idx, idx + 1);
+          });
+      });
+  }
+
+  private moveQueueItem(from: number, to: number) {
+      const arr = this.currentPlaylistTracks;
+      const element = arr[from];
+      arr.splice(from, 1);
+      arr.splice(to, 0, element);
+
+      // Adjust current playing index if it shifted
+      if (this.currentTrackIndex === from) {
+          this.currentTrackIndex = to;
+      } else if (from < this.currentTrackIndex && to >= this.currentTrackIndex) {
+          this.currentTrackIndex--;
+      } else if (from > this.currentTrackIndex && to <= this.currentTrackIndex) {
+          this.currentTrackIndex++;
+      }
+      
+      this.renderQueue();
+
+      // Ensure the audio engine knows about the real next track directly
+      if (this.currentTrackIndex < arr.length - 1) {
+          prismPlayer.preloadNext(arr[this.currentTrackIndex + 1]);
+      }
   }
 }
 
