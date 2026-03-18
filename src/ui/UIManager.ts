@@ -38,6 +38,7 @@ export class UIManager {
   private currentPlaylistTracks: TrackData[] = [];
   private currentTrackIndex: number = -1;
   private userQueue: TrackData[] = [];  // Spotify-style: plays before playlist continues
+  private nowPlayingTrack: TrackData | null = null;  // The ACTUAL track currently playing
   private isShuffle: boolean = false;
   private isRepeat: boolean = false;
   private isScrubbing: boolean = false;
@@ -219,6 +220,7 @@ export class UIManager {
   }
 
   private updatePlayerUI(track: TrackData) {
+     this.nowPlayingTrack = track;
      this.miniPlayer.classList.remove('hidden');
 
      this.miniTitle.innerText = track.title;
@@ -558,8 +560,8 @@ export class UIManager {
       let html = '';
 
       // --- Section 1: Now Playing ---
-      if (this.currentTrackIndex >= 0 && this.currentTrackIndex < this.currentPlaylistTracks.length) {
-          const current = this.currentPlaylistTracks[this.currentTrackIndex];
+      if (this.nowPlayingTrack) {
+          const current = this.nowPlayingTrack;
           html += `
             <div class="library-section-title" style="margin-top:8px;">Now Playing</div>
             <div class="queue-item active">
