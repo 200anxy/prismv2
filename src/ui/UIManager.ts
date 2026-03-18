@@ -34,6 +34,7 @@ export class UIManager {
   private btnRepeat!: HTMLButtonElement;
 
   // State
+  private currentPlaylistId: string | null = null;
   private currentPlaylistTracks: TrackData[] = [];
   private currentTrackIndex: number = -1;
   private isShuffle: boolean = false;
@@ -244,6 +245,9 @@ export class UIManager {
      document.querySelectorAll('.m3-list-item').forEach(el => el.classList.remove('active-track'));
      const activeItem = document.querySelector(`.m3-list-item[data-trackid="${track.id}"]`);
      if (activeItem) activeItem.classList.add('active-track');
+     
+     // Ambient glow
+     document.body.classList.add('has-track');
   }
 
   private async playTrack(index: number, tracks: TrackData[]) {
@@ -285,11 +289,11 @@ export class UIManager {
     
     if (playlists.length === 0) {
       this.viewLayer.innerHTML = `
-        <div style="text-align: center; color: var(--md-sys-color-on-surface-variant); margin-top: 20vh; display:flex; flex-direction:column; align-items:center; justify-content:center;">
-          <span class="material-symbols-rounded" style="font-size: 64px; margin-bottom: 24px;">library_music</span>
-          <h2 class="title-large" style="color: var(--md-sys-color-on-background); margin-bottom: 8px;">Your Library</h2>
-          <p class="body-large" style="margin-bottom: 32px;">Add a local folder to start listening.</p>
-          <button class="extended-fab" id="btn-add-folder">
+        <div class="empty-state">
+          <span class="material-symbols-rounded">library_music</span>
+          <h2>Your Library is Empty</h2>
+          <p>Add a local folder to start listening to your music offline.</p>
+          <button class="extended-fab" id="btn-add-folder" style="margin-top: 16px;">
             <span class="material-symbols-rounded">folder_open</span> Add Music Folder
           </button>
         </div>
@@ -299,20 +303,16 @@ export class UIManager {
     }
 
     let html = `
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-        <h2 class="title-large">Device Playlists</h2>
-        <button id="btn-add-folder-small" class="icon-btn">
-          <span class="material-symbols-rounded">add</span>
-        </button>
-      </div>
-      <div class="grid-container">
+      <div class="library-section">
+        <div class="library-section-title">Your Playlists</div>
+        <div class="grid-container">
     `;
 
     playlists.forEach(p => {
         html += `
           <div class="m3-card" data-id="${p.id}" data-name="${p.name}">
             <div class="m3-card-art">
-                <span class="material-symbols-rounded" style="font-size:48px; color: var(--md-sys-color-on-surface-variant);">folder</span>
+                <span class="material-symbols-rounded">folder</span>
             </div>
             <div class="m3-card-info">
                 <h3 class="text-ellipsis">${p.name}</h3>
@@ -322,10 +322,14 @@ export class UIManager {
         `;
     });
 
-    html += `</div>`;
+    html += `</div></div>`;
+    
+    // Floating add button
+    html += `<button class="fab-fixed" id="btn-add-folder-fab"><span class="material-symbols-rounded">add</span></button>`;
+    
     this.viewLayer.innerHTML = html;
     
-    document.getElementById('btn-add-folder-small')?.addEventListener('click', () => libraryManager.showDirectoryPicker());
+    document.getElementById('btn-add-folder-fab')?.addEventListener('click', () => libraryManager.showDirectoryPicker());
 
     const cards = this.viewLayer.querySelectorAll('.m3-card');
     cards.forEach(card => {
@@ -364,8 +368,8 @@ export class UIManager {
                      <div class="m3-list-title text-ellipsis">${track.title}</div>
                      <div class="m3-list-subtitle text-ellipsis">${track.artist}</div>
                  </div>
-                 <div style="display:flex; align-items:center;">
-                     <button class="icon-btn btn-add-queue" data-idx="${idx}" style="margin-right: 4px;">
+                 <div class="m3-list-actions">
+                     <button class="icon-btn btn-add-queue" data-idx="${idx}">
                         <span class="material-symbols-rounded">queue_music</span>
                      </button>
                      <button class="icon-btn btn-delete-track" data-trackid="${track.id}" data-idx="${idx}">
@@ -386,53 +390,68 @@ export class UIManager {
 
       document.getElementById('btn-playlist-play')?.addEventListener('click', () => {
           if (tracks.length > 0) {
-              this.isShuffle = false;
-              this.btnShuffle.classList.remove('active');
-              if (btnPlaylistShuffle) btnPlaylistShuffle.classList.remove('active');
-              this.playTrack(0, tracks);
+              // Always toggle if this playlist is already active
+              if (this.currentPlaylistId === playlistId && this.currentTrackIndex >= 0) {
+                  prismPlayer.togglePlay();
+              } else {
+                  this.isShuffle = false;
+                  this.btnShuffle.classList.remove('active');
+                  if (btnPlaylistShuffle) btnPlaylistShuffle.classList.remove('active');
+                  this.currentPlaylistId = playlistId;
+                  this.playTrack(0, tracks);
+              }
           }
       });
 
       btnPlaylistShuffle?.addEventListener('click', () => {
           if (tracks.length > 0) {
-              this.isShuffle = true;
-              this.btnShuffle.classList.add('active');
-              btnPlaylistShuffle.classList.add('active');
-              const randIdx = Math.floor(Math.random() * tracks.length);
-              this.playTrack(randIdx, tracks);
+              this.isShuffle = !this.isShuffle;
+              this.btnShuffle.classList.toggle('active', this.isShuffle);
+              btnPlaylistShuffle.classList.toggle('active', this.isShuffle);
+              
+              if (this.isShuffle && this.currentPlaylistId !== playlistId) {
+                  this.currentPlaylistId = playlistId;
+                  const randIdx = Math.floor(Math.random() * tracks.length);
+                  this.playTrack(randIdx, tracks);
+              }
           }
       });
 
-      // Track clicks
+      // Track clicks — only fires if the click target is NOT inside an action button
       const rows = this.viewLayer.querySelectorAll('.m3-list-item');
       rows.forEach(row => {
           row.addEventListener('click', (e) => {
-              if ((e.target as HTMLElement).closest('.btn-delete-track') || (e.target as HTMLElement).closest('.btn-add-queue')) return; 
+              const target = e.target as HTMLElement;
+              if (target.closest('.btn-delete-track') || target.closest('.btn-add-queue')) {
+                  return;
+              }
+              this.currentPlaylistId = playlistId;
               const idx = parseInt(row.getAttribute('data-idx')!, 10);
               this.playTrack(idx, tracks);
           });
       });
 
-      // Queue Logic
-      const queueBtns = this.viewLayer.querySelectorAll('.btn-add-queue');
-      queueBtns.forEach(btn => {
-          btn.addEventListener('click', () => {
+      // Queue — use capture phase so this fires FIRST, before the row handler
+      this.viewLayer.querySelectorAll('.btn-add-queue').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+              e.preventDefault();
+              e.stopImmediatePropagation();
               const idx = parseInt(btn.getAttribute('data-idx')!, 10);
               this.currentPlaylistTracks.push(tracks[idx]);
               if (navigator.vibrate) navigator.vibrate(10);
               if (this.queueOverlay.classList.contains('open')) {
                   this.renderQueue();
               }
-              // Toast or indication? Text change on button temporarily
               btn.innerHTML = `<span class="material-symbols-rounded" style="color: var(--accent-color)">check</span>`;
               setTimeout(() => btn.innerHTML = `<span class="material-symbols-rounded">queue_music</span>`, 1000);
-          });
+          }, true);
       });
 
-      // Delete Track Logic
-      const deleteBtns = this.viewLayer.querySelectorAll('.btn-delete-track');
-      deleteBtns.forEach(btn => {
-          btn.addEventListener('click', async () => {
+      // Delete — also capture phase
+      this.viewLayer.querySelectorAll('.btn-delete-track').forEach(btn => {
+          btn.addEventListener('click', async (e) => {
+              e.preventDefault();
+              e.stopImmediatePropagation();
               const trackId = btn.getAttribute('data-trackid')!;
               if (confirm('Delete this track from your library?')) {
                   const dbReq = indexedDB.open('prism-audio-db');
@@ -461,6 +480,23 @@ export class UIManager {
       });
 
       this.attachLazyArtwork(tracks);
+      this.attachLongPressDelete();
+  }
+
+  private attachLongPressDelete() {
+      const items = this.viewLayer.querySelectorAll('.m3-list-item');
+      items.forEach(item => {
+          let timer: number | null = null;
+          item.addEventListener('pointerdown', () => {
+              timer = window.setTimeout(() => {
+                  if (navigator.vibrate) navigator.vibrate(20);
+                  item.classList.toggle('show-delete');
+              }, 500);
+          });
+          item.addEventListener('pointerup', () => { if (timer) clearTimeout(timer); });
+          item.addEventListener('pointercancel', () => { if (timer) clearTimeout(timer); });
+          item.addEventListener('pointermove', () => { if (timer) clearTimeout(timer); });
+      });
   }
 
   private attachLazyArtwork(tracks: TrackData[]) {
