@@ -4,12 +4,12 @@ import { type TrackData } from '../storage/db';
 
 export class UIManager {
   private viewLayer!: HTMLElement;
-  private ambientOverlay!: HTMLElement;
   
   // Element Refs
   private topTitle!: HTMLElement;
   private miniPlayer!: HTMLElement;
   private fullPlayer!: HTMLElement;
+  private settingsOverlay!: HTMLElement;
   
   private miniTitle!: HTMLElement;
   private miniArtist!: HTMLElement;
@@ -41,12 +41,12 @@ export class UIManager {
 
   public init() {
     this.viewLayer = document.getElementById('view-layer')!;
-    this.ambientOverlay = document.getElementById('ambient-overlay')!;
     this.topTitle = document.getElementById('top-title')!;
     
-    // Players
+    // Screens
     this.miniPlayer = document.getElementById('mini-player')!;
     this.fullPlayer= document.getElementById('full-player')!;
+    this.settingsOverlay = document.getElementById('settings-overlay')!;
 
     // Mini
     this.miniTitle = document.getElementById('mini-title')!;
@@ -80,15 +80,25 @@ export class UIManager {
         this.renderLibrary();
     });
 
+    // Settings Toggle
     document.getElementById('btn-settings')?.addEventListener('click', () => {
-         alert("Settings view placeholder (Material 3 implemented).");
+        this.settingsOverlay.classList.add('open');
+    });
+    document.getElementById('btn-close-settings')?.addEventListener('click', () => {
+        this.settingsOverlay.classList.remove('open');
+    });
+    document.getElementById('btn-clear-db')?.addEventListener('click', async () => {
+        if(confirm("Are you sure you want to clear all Prism library data?")) {
+            // Delete entire indexeddb for hard reset
+            const req = indexedDB.deleteDatabase('prism-audio-db');
+            req.onsuccess = () => window.location.reload();
+        }
     });
 
     libraryManager.onLibraryUpdated = () => this.renderLibrary();
 
     // Player Overlay Toggles
     this.miniPlayer.addEventListener('click', (e) => {
-        // don't open full player if clicking play btn
         if ((e.target as HTMLElement).closest('#mini-play-pause')) return;
         this.fullPlayer.classList.add('open');
     });
@@ -142,7 +152,6 @@ export class UIManager {
     this.btnRepeat.addEventListener('click', () => {
         this.isRepeat = !this.isRepeat;
         this.btnRepeat.classList.toggle('active', this.isRepeat);
-        // Change icon to repeat_one for demonstration if wanted
         this.btnRepeat.innerHTML = `<span class="material-symbols-rounded">${this.isRepeat ? 'repeat_one' : 'repeat'}</span>`;
     });
   }
@@ -154,7 +163,7 @@ export class UIManager {
   }
 
   private updatePlayerUI(track: TrackData) {
-     this.miniPlayer.style.display = 'flex'; // Show mini player when playing starts
+     this.miniPlayer.classList.remove('hidden');
 
      this.miniTitle.innerText = track.title;
      this.miniArtist.innerText = track.artist;
@@ -171,12 +180,11 @@ export class UIManager {
      this.miniArt.innerHTML = constructArt(track.hasArtwork ? track.artworkBlob : undefined);
      this.fullArt.innerHTML = constructArt(track.hasArtwork ? track.artworkBlob : undefined);
 
+     // Crisp M3 Dynamic Color Injection without vague gradients
      if (track.dominantColor) {
          document.documentElement.style.setProperty('--accent-color', track.dominantColor);
-         this.ambientOverlay.style.background = `radial-gradient(circle at top right, ${track.dominantColor} 0%, transparent 80%)`;
      } else {
-         document.documentElement.style.setProperty('--accent-color', '#a8c7fa'); // fallback
-         this.ambientOverlay.style.background = `radial-gradient(circle at top right, #a8c7fa 0%, transparent 80%)`;
+         document.documentElement.style.setProperty('--accent-color', '#a8c7fa'); 
      }
   }
 
@@ -197,7 +205,7 @@ export class UIManager {
           nextIdx = Math.floor(Math.random() * this.currentPlaylistTracks.length);
       } else if (nextIdx >= this.currentPlaylistTracks.length) {
           if (this.isRepeat) nextIdx = 0;
-          else return; // end of list
+          else return; 
       }
       this.playTrack(nextIdx, this.currentPlaylistTracks);
   }
@@ -212,8 +220,8 @@ export class UIManager {
   // --- Views ---
 
   public async renderLibrary() {
-    this.topTitle.innerText = 'Library';
-    document.getElementById('btn-library')!.style.opacity = '0'; // hide back button
+    this.topTitle.innerText = 'Music Library';
+    document.getElementById('btn-library')!.style.opacity = '0'; 
 
     const playlists = await libraryManager.getAllPlaylists();
     
@@ -221,8 +229,8 @@ export class UIManager {
       this.viewLayer.innerHTML = `
         <div style="text-align: center; color: var(--md-sys-color-on-surface-variant); margin-top: 20vh; display:flex; flex-direction:column; align-items:center; justify-content:center;">
           <span class="material-symbols-rounded" style="font-size: 64px; margin-bottom: 24px;">library_music</span>
-          <h2 class="headline-large" style="color: var(--text-primary); margin-bottom: 8px;">Your Library</h2>
-          <p style="margin-bottom: 32px;">Add a local folder to start listening.</p>
+          <h2 class="title-large" style="color: var(--md-sys-color-on-background); margin-bottom: 8px;">Your Library</h2>
+          <p class="body-large" style="margin-bottom: 32px;">Add a local folder to start listening.</p>
           <button class="extended-fab" id="btn-add-folder">
             <span class="material-symbols-rounded">folder_open</span> Add Music Folder
           </button>
@@ -233,9 +241,9 @@ export class UIManager {
     }
 
     let html = `
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
-        <h2 style="font-size: 1.5rem; font-weight: 500;">Device Playlists</h2>
-        <button id="btn-add-folder-small" class="icon-btn" style="background: var(--md-sys-color-surface-container-highest);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h2 class="title-large">Device Playlists</h2>
+        <button id="btn-add-folder-small" class="icon-btn">
           <span class="material-symbols-rounded">add</span>
         </button>
       </div>
@@ -244,11 +252,11 @@ export class UIManager {
 
     playlists.forEach(p => {
         html += `
-          <div class="playlist-card" data-id="${p.id}" data-name="${p.name}">
-            <div class="playlist-card-art">
+          <div class="m3-card" data-id="${p.id}" data-name="${p.name}">
+            <div class="m3-card-art">
                 <span class="material-symbols-rounded" style="font-size:48px; color: var(--md-sys-color-on-surface-variant);">folder</span>
             </div>
-            <div class="playlist-info">
+            <div class="m3-card-info">
                 <h3 class="text-ellipsis">${p.name}</h3>
                 <p>${p.trackIds.length} tracks</p>
             </div>
@@ -257,19 +265,17 @@ export class UIManager {
     });
 
     html += `</div>`;
-    
     this.viewLayer.innerHTML = html;
     
     document.getElementById('btn-add-folder-small')?.addEventListener('click', () => libraryManager.showDirectoryPicker());
 
-    const cards = this.viewLayer.querySelectorAll('.playlist-card');
+    const cards = this.viewLayer.querySelectorAll('.m3-card');
     cards.forEach(card => {
         card.addEventListener('click', () => {
             const id = card.getAttribute('data-id')!;
             const name = card.getAttribute('data-name')!;
-            // Set nav title natively using the user's explicit feedback
             this.topTitle.innerText = name;
-            document.getElementById('btn-library')!.style.opacity = '1'; // show back button
+            document.getElementById('btn-library')!.style.opacity = '1'; 
             this.renderPlaylist(id);
         });
     });
@@ -278,17 +284,17 @@ export class UIManager {
   public async renderPlaylist(playlistId: string) {
       const tracks = await libraryManager.getTracksForPlaylist(playlistId);
       
-      let html = `<div class="track-list">`;
+      let html = `<div style="display: flex; flex-direction: column;">`;
 
       tracks.forEach((track, idx) => {
           html += `
-             <div class="track-row" data-idx="${idx}">
-                 <div class="art-container lazy-art" data-trackid="${track.id}">
+             <div class="m3-list-item" data-idx="${idx}">
+                 <div class="m3-list-art lazy-art" data-trackid="${track.id}">
                     <span class="material-symbols-rounded fallback-icon" style="color: var(--md-sys-color-on-surface-variant);">music_note</span>
                  </div>
-                 <div style="flex:1; overflow:hidden; display: flex; flex-direction: column; justify-content: center;">
-                     <div class="text-ellipsis" style="font-size: 1rem; font-weight: 500; color: var(--md-sys-color-on-background); margin-bottom: 2px;">${track.title}</div>
-                     <div class="text-ellipsis" style="font-size: 0.875rem; color: var(--md-sys-color-on-surface-variant);">${track.artist}</div>
+                 <div class="m3-list-text">
+                     <div class="m3-list-title text-ellipsis">${track.title}</div>
+                     <div class="m3-list-subtitle text-ellipsis">${track.artist}</div>
                  </div>
                  <button class="icon-btn">
                     <span class="material-symbols-rounded">more_vert</span>
@@ -300,7 +306,7 @@ export class UIManager {
       this.viewLayer.innerHTML = html;
 
       // Track clicks
-      const rows = this.viewLayer.querySelectorAll('.track-row');
+      const rows = this.viewLayer.querySelectorAll('.m3-list-item');
       rows.forEach(row => {
           row.addEventListener('click', () => {
               const idx = parseInt(row.getAttribute('data-idx')!, 10);
