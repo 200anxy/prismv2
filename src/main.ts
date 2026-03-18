@@ -129,12 +129,12 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
     </div>
   </div>
 
-  <!-- Queue Overlay -->
   <div class="queue-overlay" id="queue-overlay">
+    <div class="queue-handle-bar"><div class="queue-handle-pill"></div></div>
     <div class="queue-nav">
       <h1 class="title-large" style="margin-left: 16px;">Up Next</h1>
       <button class="icon-btn" id="btn-close-queue">
-        <span class="material-symbols-rounded">close</span>
+        <span class="material-symbols-rounded">expand_more</span>
       </button>
     </div>
     <div class="queue-content" id="queue-list">

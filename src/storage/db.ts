@@ -80,3 +80,19 @@ export async function getTracksByPlaylist(playlistId: string): Promise<TrackData
   const db = await getDB();
   return db.getAllFromIndex('tracks', 'by-playlist', playlistId);
 }
+
+export async function deleteTrack(trackId: string, playlistId: string) {
+  const db = await getDB();
+  const tx = db.transaction(['tracks', 'playlists'], 'readwrite');
+  
+  tx.objectStore('tracks').delete(trackId);
+  
+  const playlistStore = tx.objectStore('playlists');
+  const playlist = await playlistStore.get(playlistId);
+  if (playlist) {
+    playlist.trackIds = playlist.trackIds.filter(id => id !== trackId);
+    await playlistStore.put(playlist);
+  }
+  
+  await tx.done;
+}
