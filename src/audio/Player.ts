@@ -34,7 +34,7 @@ export class PrismPlayer {
     });
 
     this.activeAudio.addEventListener('ended', () => {
-      this.playNextPrepared();
+      this.onRequestSkipNext();
     });
 
     this.activeAudio.addEventListener('play', () => this.updatePlayState(true));
@@ -80,52 +80,8 @@ export class PrismPlayer {
       return URL.createObjectURL(file);
   }
 
-  private async playNextPrepared() {
-    if (!this.standbyUrl || !this.nextTrack) {
-        // No preloaded track — delegate to UIManager to decide what plays next
-        // (handles user queue, shuffle, repeat, etc.)
-        this.onRequestSkipNext();
-        return;
-    }
 
-    // Swap buffers
-    const temp = this.activeAudio;
-    this.activeAudio = this.standbyAudio;
-    this.standbyAudio = temp;
 
-    this.currentTrack = this.nextTrack;
-    this.nextTrack = null;
-    
-    if (this.activeUrl) URL.revokeObjectURL(this.activeUrl);
-    this.activeUrl = this.standbyUrl;
-    this.standbyUrl = null;
-
-    // Attach listeners to new active audio
-    this.attachActiveListeners();
-    
-    await this.activeAudio.play();
-    this.onTrackChange(this.currentTrack);
-    this.setupMediaSession(this.currentTrack);
-  }
-
-  private attachActiveListeners() {
-      // Clear old listeners on standby (formerly active)
-      this.standbyAudio.onended = null;
-      this.standbyAudio.ontimeupdate = null;
-      this.standbyAudio.onplay = null;
-      this.standbyAudio.onpause = null;
-
-      // Ensure new active has listeners
-      this.activeAudio.onended = () => this.playNextPrepared();
-      this.activeAudio.ontimeupdate = () => {
-          this.onTimeUpdate(this.activeAudio.currentTime, this.activeAudio.duration || 0);
-          if (this.activeAudio.duration - this.activeAudio.currentTime < 5 && this.nextTrack && !this.standbyUrl) {
-              this.preloadNext(this.nextTrack);
-          }
-      };
-      this.activeAudio.onplay = () => this.updatePlayState(true);
-      this.activeAudio.onpause = () => this.updatePlayState(false);
-  }
 
 
 
