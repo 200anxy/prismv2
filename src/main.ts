@@ -49,6 +49,9 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   </div>
 `;
 
+// Initialize UI Managers and listeners
+uiManager.init();
+
 // Simple example of clicking a button
 document.getElementById('btn-add-folder')?.addEventListener('click', async () => {
     try {

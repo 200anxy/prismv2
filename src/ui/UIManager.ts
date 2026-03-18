@@ -3,22 +3,26 @@ import { prismPlayer } from '../audio/Player';
 import { type TrackData } from '../storage/db';
 
 export class UIManager {
-  private viewLayer: HTMLElement;
-  private ambientOverlay: HTMLElement;
+  private viewLayer!: HTMLElement;
+  private ambientOverlay!: HTMLElement;
   
   // Controls
-  private btnPlayPause: HTMLButtonElement;
-  private btnPrev: HTMLButtonElement;
-  private btnNext: HTMLButtonElement;
-  private progressBar: HTMLElement;
-  private progressFill: HTMLElement;
-  private timeCurrent: HTMLElement;
-  private timeTotal: HTMLElement;
+  private btnPlayPause!: HTMLButtonElement;
+  private btnPrev!: HTMLButtonElement;
+  private btnNext!: HTMLButtonElement;
+  private progressBar!: HTMLElement;
+  private progressFill!: HTMLElement;
+  private timeCurrent!: HTMLElement;
+  private timeTotal!: HTMLElement;
 
   private currentPlaylistTracks: TrackData[] = [];
   private currentTrackIndex: number = -1;
 
   constructor() {
+     // Wait for init() 
+  }
+
+  public init() {
     this.viewLayer = document.getElementById('view-layer')!;
     this.ambientOverlay = document.getElementById('ambient-overlay')!;
     
