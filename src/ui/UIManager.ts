@@ -37,6 +37,7 @@ export class UIManager {
   private currentPlaylistId: string | null = null;
   private currentPlaylistTracks: TrackData[] = [];
   private currentTrackIndex: number = -1;
+  private userQueue: TrackData[] = [];  // Spotify-style: plays before playlist continues
   private isShuffle: boolean = false;
   private isRepeat: boolean = false;
   private isScrubbing: boolean = false;
@@ -260,6 +261,22 @@ export class UIManager {
   }
 
   private playNext() {
+      // 1. Drain user queue first (Spotify-style "Next in Queue")
+      if (this.userQueue.length > 0) {
+          const nextTrack = this.userQueue.shift()!;
+          // Find its index in playlist if it exists, otherwise just play it directly
+          const foundIdx = this.currentPlaylistTracks.findIndex(t => t.id === nextTrack.id);
+          if (foundIdx >= 0) {
+              this.playTrack(foundIdx, this.currentPlaylistTracks);
+          } else {
+              // Track isn't in playlist (edge case), play it standalone
+              prismPlayer.playTrack(nextTrack);
+              this.updatePlayerUI(nextTrack);
+          }
+          return;
+      }
+
+      // 2. Then continue from playlist
       if (this.currentPlaylistTracks.length === 0) return;
       let nextIdx = this.currentTrackIndex + 1;
 
@@ -437,7 +454,7 @@ export class UIManager {
               e.preventDefault();
               e.stopImmediatePropagation();
               const idx = parseInt(btn.getAttribute('data-idx')!, 10);
-              this.currentPlaylistTracks.push(tracks[idx]);
+              this.userQueue.push(tracks[idx]);
               if (navigator.vibrate) navigator.vibrate(10);
               if (this.queueOverlay.classList.contains('open')) {
                   this.renderQueue();
@@ -532,34 +549,73 @@ export class UIManager {
           this.sortableInstance = null;
       }
 
-      if (this.currentPlaylistTracks.length === 0) {
+      const hasUserQueue = this.userQueue.length > 0;
+      const hasPlaylistTracks = this.currentPlaylistTracks.length > 0;
+
+      if (!hasUserQueue && !hasPlaylistTracks) {
           this.queueList.innerHTML = `<div style="text-align:center; margin-top:40px; color:var(--md-sys-color-on-surface-variant);">No upcoming tracks</div>`;
           return;
       }
 
-      let html = `<div id="sortable-queue" style="display:flex; flex-direction:column; gap:4px;">`;
-      
-      this.currentPlaylistTracks.forEach((track, idx) => {
-          const isActive = idx === this.currentTrackIndex;
+      let html = '';
+
+      // --- Section 1: Now Playing ---
+      if (this.currentTrackIndex >= 0 && this.currentTrackIndex < this.currentPlaylistTracks.length) {
+          const current = this.currentPlaylistTracks[this.currentTrackIndex];
           html += `
-             <div class="queue-item ${isActive ? 'active' : ''}" style="cursor: grab;">
-                 <div style="flex:1; overflow:hidden; display:flex; flex-direction:column;" class="text-ellipsis">
-                     <span style="font-size:0.95rem; font-weight: ${isActive ? '500' : '400'}; color: var(--md-sys-color-on-background);">${track.title}</span>
-                     <span style="font-size:0.75rem; color: var(--md-sys-color-on-surface-variant);">${track.artist}</span>
-                 </div>
-                 <div class="queue-item-actions">
-                    <span class="material-symbols-rounded" style="color:var(--md-sys-color-on-surface-variant); cursor: grab;">drag_handle</span>
-                    ${isActive ? `<span class="material-symbols-rounded" style="color:var(--accent-color); margin-left:8px;">volume_up</span>` : ''}
-                 </div>
-             </div>
+            <div class="library-section-title" style="margin-top:8px;">Now Playing</div>
+            <div class="queue-item active">
+                <div style="flex:1; overflow:hidden; display:flex; flex-direction:column;" class="text-ellipsis">
+                    <span style="font-size:0.9375rem; font-weight:600; color:var(--accent-color);">${current.title}</span>
+                    <span style="font-size:0.75rem; font-weight:300; color:var(--md-sys-color-on-surface-variant);">${current.artist}</span>
+                </div>
+                <span class="material-symbols-rounded" style="color:var(--accent-color);">volume_up</span>
+            </div>
           `;
-      });
-      
-      html += `</div>`;
+      }
+
+      // --- Section 2: Next in Queue (User-added) ---
+      if (hasUserQueue) {
+          html += `<div class="library-section-title" style="margin-top:20px;">Next in Queue</div>`;
+          html += `<div id="sortable-user-queue" style="display:flex; flex-direction:column;">`;
+          this.userQueue.forEach((track, idx) => {
+              html += `
+                <div class="queue-item" data-uq-idx="${idx}" style="cursor: grab;">
+                    <div style="flex:1; overflow:hidden; display:flex; flex-direction:column;" class="text-ellipsis">
+                        <span style="font-size:0.9375rem; font-weight:500; color:var(--md-sys-color-on-background);">${track.title}</span>
+                        <span style="font-size:0.75rem; font-weight:300; color:var(--md-sys-color-on-surface-variant);">${track.artist}</span>
+                    </div>
+                    <div class="queue-item-actions">
+                       <span class="material-symbols-rounded" style="color:var(--md-sys-color-on-surface-variant); cursor: grab;">drag_handle</span>
+                    </div>
+                </div>
+              `;
+          });
+          html += `</div>`;
+      }
+
+      // --- Section 3: Next from <Playlist> ---
+      if (hasPlaylistTracks && this.currentTrackIndex >= 0) {
+          const upcoming = this.currentPlaylistTracks.slice(this.currentTrackIndex + 1);
+          if (upcoming.length > 0) {
+              html += `<div class="library-section-title" style="margin-top:20px;">Next from Playlist</div>`;
+              upcoming.forEach(track => {
+                  html += `
+                    <div class="queue-item">
+                        <div style="flex:1; overflow:hidden; display:flex; flex-direction:column;" class="text-ellipsis">
+                            <span style="font-size:0.9375rem; font-weight:400; color:var(--md-sys-color-on-background);">${track.title}</span>
+                            <span style="font-size:0.75rem; font-weight:300; color:var(--md-sys-color-on-surface-variant);">${track.artist}</span>
+                        </div>
+                    </div>
+                  `;
+              });
+          }
+      }
+
       this.queueList.innerHTML = html;
 
-      // Bind dragging via SortableJS
-      const el = document.getElementById('sortable-queue');
+      // Bind drag on user queue only
+      const el = document.getElementById('sortable-user-queue');
       if (el) {
           this.sortableInstance = Sortable.create(el, {
               animation: 150,
@@ -567,35 +623,15 @@ export class UIManager {
               onEnd: (evt) => {
                   if (navigator.vibrate) navigator.vibrate(10);
                   if (evt.oldIndex !== undefined && evt.newIndex !== undefined && evt.oldIndex !== evt.newIndex) {
-                      this.moveQueueItem(evt.oldIndex, evt.newIndex);
+                      const item = this.userQueue.splice(evt.oldIndex, 1)[0];
+                      this.userQueue.splice(evt.newIndex, 0, item);
+                      this.renderQueue();
                   }
               }
           });
       }
   }
 
-  private moveQueueItem(from: number, to: number) {
-      const arr = this.currentPlaylistTracks;
-      const element = arr[from];
-      arr.splice(from, 1);
-      arr.splice(to, 0, element);
-
-      // Adjust current playing index if it shifted
-      if (this.currentTrackIndex === from) {
-          this.currentTrackIndex = to;
-      } else if (from < this.currentTrackIndex && to >= this.currentTrackIndex) {
-          this.currentTrackIndex--;
-      } else if (from > this.currentTrackIndex && to <= this.currentTrackIndex) {
-          this.currentTrackIndex++;
-      }
-      
-      this.renderQueue();
-
-      // Ensure the audio engine knows about the real next track directly
-      if (this.currentTrackIndex < arr.length - 1) {
-          prismPlayer.preloadNext(arr[this.currentTrackIndex + 1]);
-      }
-  }
 }
 
 export const uiManager = new UIManager();
