@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
-  base: '/prism/',
+  base: './',
   plugins: [
     VitePWA({
       registerType: 'prompt', // We want to control the update prompt
