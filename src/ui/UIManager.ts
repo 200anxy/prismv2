@@ -100,7 +100,15 @@ export class UIManager {
         }
     });
 
-    libraryManager.onLibraryUpdated = () => this.renderLibrary();
+    libraryManager.onLibraryUpdated = () => {
+        this.topTitle.innerText = 'Music Library';
+        this.renderLibrary();
+    };
+
+    libraryManager.onImportProgress = (current, total) => {
+        const pct = Math.floor((current / total) * 100);
+        this.topTitle.innerText = `Importing (${pct}%)...`;
+    };
 
     // Player Overlay Toggles
     this.miniPlayer.addEventListener('click', (e) => {

@@ -3,6 +3,7 @@ import { extractMetadata } from './Metadata';
 
 export class LibraryManager {
   public onLibraryUpdated: () => void = () => {};
+  public onImportProgress: (current: number, total: number) => void = () => {};
 
   constructor() {}
 
@@ -20,32 +21,44 @@ export class LibraryManager {
 
   // Handle folder upload via standard <input webkitdirectory> or drag-and-drop
   async processFiles(files: File[], folderName: string = 'Imported Folder') {
-    const playlistId = 'playlist-' + Date.now().toString() + '-' + Math.random().toString(36).substr(2, 5);
+    const validFiles = files.filter(f => f.type.startsWith('audio/') || f.name.match(/\.(mp3|flac|wav|m4a|ogg)$/i));
+    const total = validFiles.length;
     
+    if (total === 0) return;
+
+    const playlistId = 'playlist-' + Date.now().toString() + '-' + Math.random().toString(36).substr(2, 5);
     const trackIds: string[] = [];
 
-    for (const file of files) {
-      if (!file.type.startsWith('audio/') && !file.name.match(/\.(mp3|flac|wav|m4a|ogg)$/i)) {
-        continue;
+    for (let i = 0; i < total; i++) {
+      const file = validFiles[i];
+      this.onImportProgress(i + 1, total);
+
+      try {
+        const meta = await extractMetadata(file);
+        const trackId = 'track-' + Date.now().toString() + '-' + Math.random().toString(36).substr(2, 5);
+        
+        const trackData: TrackData = {
+          id: trackId,
+          title: meta.title,
+          artist: meta.artist,
+          album: meta.album,
+          playlistId: playlistId,
+          fileRef: file,
+          hasArtwork: meta.hasArtwork,
+          artworkBlob: meta.artworkBlob,
+          dominantColor: meta.dominantColor
+        };
+
+        await addTrack(trackData);
+        trackIds.push(trackId);
+      } catch (e) {
+        console.warn('Failed to parse track:', file.name, e);
       }
 
-      const meta = await extractMetadata(file);
-      const trackId = 'track-' + Date.now().toString() + '-' + Math.random().toString(36).substr(2, 5);
-      
-      const trackData: TrackData = {
-        id: trackId,
-        title: meta.title,
-        artist: meta.artist,
-        album: meta.album,
-        playlistId: playlistId,
-        fileRef: file,
-        hasArtwork: meta.hasArtwork,
-        artworkBlob: meta.artworkBlob,
-        dominantColor: meta.dominantColor
-      };
-
-      await addTrack(trackData);
-      trackIds.push(trackId);
+      // Yield frame to paint UI updates and prevent mobile browser freeze
+      if (i % 5 === 0) {
+        await new Promise(r => setTimeout(r, 0));
+      }
     }
 
     if (trackIds.length > 0) {
