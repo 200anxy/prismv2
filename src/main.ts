@@ -7,13 +7,13 @@ bindSilentReauth();
 (window as any).uiManager = uiManager;
 
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
-  <div class="top-nav">
+  <div class="top-app-bar">
     <button class="icon-btn" id="btn-library">
-      <span class="material-symbols-rounded">home</span>
+      <span class="material-symbols-rounded">arrow_back</span>
     </button>
-    <h1 id="top-title">Prism</h1>
+    <h1 id="top-title" class="text-ellipsis">Library</h1>
     <button class="icon-btn" id="btn-settings">
-      <span class="material-symbols-rounded">settings</span>
+      <span class="material-symbols-rounded">more_vert</span>
     </button>
   </div>
   
@@ -21,45 +21,76 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
     <!-- View content injected here -->
   </div>
 
-  <div class="player-bar">
-    <div class="player-now-playing">
-      <div class="player-art-container" id="player-art">
-         <span class="material-symbols-rounded" style="color: var(--text-secondary);">music_note</span>
-      </div>
-      <div class="player-track-info">
-        <div class="player-title text-ellipsis" id="player-title">Not Playing</div>
-        <div class="player-artist text-ellipsis" id="player-artist">-</div>
-      </div>
+  <!-- Mini Player (Floating at bottom) -->
+  <div class="mini-player" id="mini-player" style="display: none;">
+    <div class="mini-player-art" id="mini-art">
+       <span class="material-symbols-rounded" style="color: var(--md-sys-color-on-surface-variant);">music_note</span>
     </div>
-    
-    <div class="player-center">
-      <div class="player-controls-row">
-        <button class="icon-btn" id="btn-prev">
-          <span class="material-symbols-rounded">skip_previous</span>
-        </button>
-        <button class="play-pause-btn" id="btn-play-pause">
-          <span class="material-symbols-rounded">play_arrow</span>
-        </button>
-        <button class="icon-btn" id="btn-next">
-          <span class="material-symbols-rounded">skip_next</span>
-        </button>
-      </div>
-      
-      <div class="progress-container">
-        <span id="time-current">0:00</span>
-        <div class="progress-bar-wrapper" id="progress-wrapper">
-          <div class="progress-bar" id="progress-bar">
-            <div class="progress-fill" id="progress-fill"></div>
-          </div>
-        </div>
-        <span id="time-total">0:00</span>
-      </div>
+    <div class="mini-player-info">
+      <div class="mini-player-title text-ellipsis" id="mini-title">Not Playing</div>
+      <div class="mini-player-artist text-ellipsis" id="mini-artist">-</div>
+    </div>
+    <div class="mini-player-controls">
+      <button class="icon-btn" id="mini-view-full">
+         <span class="material-symbols-rounded">open_in_full</span>
+      </button>
+      <button class="fab-play" id="mini-play-pause">
+        <span class="material-symbols-rounded">play_arrow</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Full Screen Player Overlay -->
+  <div class="full-player" id="full-player">
+    <div class="full-player-nav">
+      <button class="icon-btn" id="btn-close-full">
+        <span class="material-symbols-rounded">expand_more</span>
+      </button>
+      <div style="font-weight: 500; font-size: 0.875rem;">Now Playing</div>
+      <button class="icon-btn">
+        <span class="material-symbols-rounded">more_vert</span>
+      </button>
     </div>
 
-    <div class="player-right">
-       <button class="icon-btn" id="btn-queue">
-          <span class="material-symbols-rounded">queue_music</span>
-       </button>
+    <div class="full-player-content">
+      <div class="full-player-art" id="full-art">
+         <span class="material-symbols-rounded" style="font-size: 64px; color: var(--md-sys-color-on-surface-variant);">music_note</span>
+      </div>
+      
+      <div class="full-player-info">
+         <div class="full-player-title text-ellipsis headline-large" id="full-title">Not Playing</div>
+         <div class="full-player-artist text-ellipsis" id="full-artist">-</div>
+      </div>
+
+      <div class="full-progress-container">
+         <div class="full-progress-bar-wrapper" id="full-progress-wrapper">
+             <div class="full-progress-bar" id="full-progress-bar">
+                 <div class="full-progress-fill" id="full-progress-fill"></div>
+             </div>
+         </div>
+         <div class="full-time-row">
+             <span id="full-time-current">0:00</span>
+             <span id="full-time-total">0:00</span>
+         </div>
+      </div>
+
+      <div class="full-controls-main">
+         <button class="icon-btn" id="btn-shuffle">
+            <span class="material-symbols-rounded">shuffle</span>
+         </button>
+         <button class="icon-btn" id="full-btn-prev">
+            <span class="material-symbols-rounded" style="font-size: 32px;">skip_previous</span>
+         </button>
+         <button class="fab-play fab-play-huge" id="full-btn-play-pause">
+            <span class="material-symbols-rounded">play_arrow</span>
+         </button>
+         <button class="icon-btn" id="full-btn-next">
+            <span class="material-symbols-rounded" style="font-size: 32px;">skip_next</span>
+         </button>
+         <button class="icon-btn" id="btn-repeat">
+            <span class="material-symbols-rounded">repeat</span>
+         </button>
+      </div>
     </div>
   </div>
 `;
