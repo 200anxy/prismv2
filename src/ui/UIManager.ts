@@ -1,6 +1,7 @@
 import { libraryManager } from '../storage/Library';
 import { prismPlayer } from '../audio/Player';
 import { type TrackData } from '../storage/db';
+import Sortable from 'sortablejs';
 
 export class UIManager {
   private viewLayer!: HTMLElement;
@@ -25,8 +26,7 @@ export class UIManager {
   private fullPrev!: HTMLButtonElement;
   private fullNext!: HTMLButtonElement;
   
-  private progressWrapper!: HTMLElement;
-  private progressFill!: HTMLElement;
+  private progressSlider!: HTMLInputElement;
   private timeCurrent!: HTMLElement;
   private timeTotal!: HTMLElement;
 
@@ -38,6 +38,8 @@ export class UIManager {
   private currentTrackIndex: number = -1;
   private isShuffle: boolean = false;
   private isRepeat: boolean = false;
+  private isScrubbing: boolean = false;
+  private sortableInstance: Sortable | null = null;
 
   constructor() {}
 
@@ -66,8 +68,7 @@ export class UIManager {
     this.fullPrev = document.getElementById('full-btn-prev') as HTMLButtonElement;
     this.fullNext = document.getElementById('full-btn-next') as HTMLButtonElement;
     
-    this.progressWrapper = document.getElementById('full-progress-wrapper')!;
-    this.progressFill = document.getElementById('full-progress-fill')!;
+    this.progressSlider = document.getElementById('progress-slider') as HTMLInputElement;
     this.timeCurrent = document.getElementById('full-time-current')!;
     this.timeTotal = document.getElementById('full-time-total')!;
 
@@ -138,13 +139,19 @@ export class UIManager {
       this.timeCurrent.innerText = this.formatTime(current);
       if (total && !isNaN(total) && total > 0) {
         this.timeTotal.innerText = this.formatTime(total);
-        const pct = (current / total) * 100;
-        this.progressFill.style.width = `${pct}%`;
+        if (!this.isScrubbing) {
+            const pct = (current / total) * 100;
+            this.progressSlider.value = pct.toString();
+            this.progressSlider.style.setProperty('--slider-fill', `${pct}%`);
+        }
       }
     };
 
     // Controls
-    const togglePlay = () => prismPlayer.togglePlay();
+    const togglePlay = () => {
+        if (navigator.vibrate) navigator.vibrate(15);
+        prismPlayer.togglePlay();
+    };
     this.miniPlayPause.addEventListener('click', togglePlay);
     this.fullPlayPause.addEventListener('click', togglePlay);
 
@@ -154,10 +161,18 @@ export class UIManager {
     this.fullNext.addEventListener('click', skipNext);
     this.fullPrev.addEventListener('click', skipPrev);
 
-    this.progressWrapper.addEventListener('click', (e) => {
-      const rect = this.progressWrapper.getBoundingClientRect();
-      const pct = (e.clientX - rect.left) / rect.width;
-      prismPlayer.seek(pct);
+    // Native Range Slider Scrubbing Logic with Haptics
+    this.progressSlider.addEventListener('input', () => {
+        this.isScrubbing = true;
+        const pct = parseFloat(this.progressSlider.value);
+        this.progressSlider.style.setProperty('--slider-fill', `${pct}%`);
+        if (navigator.vibrate) navigator.vibrate(5);
+    });
+
+    this.progressSlider.addEventListener('change', () => {
+        this.isScrubbing = false;
+        const pct = parseFloat(this.progressSlider.value) / 100;
+        prismPlayer.seek(pct);
     });
 
     // Shuffle & Repeat
@@ -332,18 +347,25 @@ export class UIManager {
       this.viewLayer.innerHTML = html;
 
       // Header Actions
+      const btnPlaylistShuffle = document.getElementById('btn-playlist-shuffle');
+      if (btnPlaylistShuffle) {
+          btnPlaylistShuffle.classList.toggle('active', this.isShuffle);
+      }
+
       document.getElementById('btn-playlist-play')?.addEventListener('click', () => {
           if (tracks.length > 0) {
               this.isShuffle = false;
               this.btnShuffle.classList.remove('active');
+              if (btnPlaylistShuffle) btnPlaylistShuffle.classList.remove('active');
               this.playTrack(0, tracks);
           }
       });
 
-      document.getElementById('btn-playlist-shuffle')?.addEventListener('click', () => {
+      btnPlaylistShuffle?.addEventListener('click', () => {
           if (tracks.length > 0) {
               this.isShuffle = true;
               this.btnShuffle.classList.add('active');
+              btnPlaylistShuffle.classList.add('active');
               const randIdx = Math.floor(Math.random() * tracks.length);
               this.playTrack(randIdx, tracks);
           }
@@ -389,28 +411,28 @@ export class UIManager {
 
   // --- Queue ---
   private renderQueue() {
+      if (this.sortableInstance) {
+          this.sortableInstance.destroy();
+          this.sortableInstance = null;
+      }
+
       if (this.currentPlaylistTracks.length === 0) {
           this.queueList.innerHTML = `<div style="text-align:center; margin-top:40px; color:var(--md-sys-color-on-surface-variant);">No upcoming tracks</div>`;
           return;
       }
 
-      let html = `<div style="display:flex; flex-direction:column; gap:4px;">`;
+      let html = `<div id="sortable-queue" style="display:flex; flex-direction:column; gap:4px;">`;
       
       this.currentPlaylistTracks.forEach((track, idx) => {
           const isActive = idx === this.currentTrackIndex;
           html += `
-             <div class="queue-item ${isActive ? 'active' : ''}">
+             <div class="queue-item ${isActive ? 'active' : ''}" style="cursor: grab;">
                  <div style="flex:1; overflow:hidden; display:flex; flex-direction:column;" class="text-ellipsis">
                      <span style="font-size:0.95rem; font-weight: ${isActive ? '500' : '400'}; color: var(--md-sys-color-on-background);">${track.title}</span>
                      <span style="font-size:0.75rem; color: var(--md-sys-color-on-surface-variant);">${track.artist}</span>
                  </div>
                  <div class="queue-item-actions">
-                    <button class="icon-btn btn-q-up" data-idx="${idx}" style="width:36px; height:36px;">
-                       <span class="material-symbols-rounded">arrow_upward</span>
-                    </button>
-                    <button class="icon-btn btn-q-down" data-idx="${idx}" style="width:36px; height:36px;">
-                       <span class="material-symbols-rounded">arrow_downward</span>
-                    </button>
+                    <span class="material-symbols-rounded" style="color:var(--md-sys-color-on-surface-variant); cursor: grab;">drag_handle</span>
                     ${isActive ? `<span class="material-symbols-rounded" style="color:var(--accent-color); margin-left:8px;">volume_up</span>` : ''}
                  </div>
              </div>
@@ -420,20 +442,20 @@ export class UIManager {
       html += `</div>`;
       this.queueList.innerHTML = html;
 
-      // Bind reordering
-      this.queueList.querySelectorAll('.btn-q-up').forEach(btn => {
-          btn.addEventListener('click', () => {
-              const idx = parseInt((btn as HTMLElement).getAttribute('data-idx')!, 10);
-              if (idx > 0) this.moveQueueItem(idx, idx - 1);
+      // Bind dragging via SortableJS
+      const el = document.getElementById('sortable-queue');
+      if (el) {
+          this.sortableInstance = Sortable.create(el, {
+              animation: 150,
+              handle: '.queue-item',
+              onEnd: (evt) => {
+                  if (navigator.vibrate) navigator.vibrate(10);
+                  if (evt.oldIndex !== undefined && evt.newIndex !== undefined && evt.oldIndex !== evt.newIndex) {
+                      this.moveQueueItem(evt.oldIndex, evt.newIndex);
+                  }
+              }
           });
-      });
-
-      this.queueList.querySelectorAll('.btn-q-down').forEach(btn => {
-          btn.addEventListener('click', () => {
-              const idx = parseInt((btn as HTMLElement).getAttribute('data-idx')!, 10);
-              if (idx < this.currentPlaylistTracks.length - 1) this.moveQueueItem(idx, idx + 1);
-          });
-      });
+      }
   }
 
   private moveQueueItem(from: number, to: number) {

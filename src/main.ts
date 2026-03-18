@@ -58,11 +58,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
       </div>
 
       <div class="full-progress-container">
-         <div class="full-progress-bar-wrapper" id="full-progress-wrapper">
-             <div class="full-progress-bar" id="full-progress-bar">
-                 <div class="full-progress-fill" id="full-progress-fill"></div>
-             </div>
-         </div>
+         <input type="range" class="m3-slider" id="progress-slider" min="0" max="100" value="0" step="0.1">
          <div class="full-time-row label-medium">
              <span id="full-time-current">0:00</span>
              <span id="full-time-total">0:00</span>
