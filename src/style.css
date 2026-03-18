@@ -216,6 +216,11 @@ body {
   transition: background-color 0.2s;
 }
 
+.m3-list-item.active-track .m3-list-title {
+  color: var(--accent-color);
+  font-weight: 700;
+}
+
 .m3-list-item:active {
   background-color: var(--md-sys-color-surface-container);
   border-radius: 8px;

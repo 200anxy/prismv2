@@ -112,7 +112,7 @@ export class UIManager {
 
     // Player Overlay Toggles
     this.miniPlayer.addEventListener('click', (e) => {
-        if ((e.target as HTMLElement).closest('#mini-play-pause')) return;
+        if ((e.target as HTMLElement).closest('.mini-player-controls')) return;
         this.fullPlayer.classList.add('open');
     });
     
@@ -125,6 +125,9 @@ export class UIManager {
       const icon = playing ? 'pause' : 'play_arrow';
       this.miniPlayPause.innerHTML = `<span class="material-symbols-rounded">${icon}</span>`;
       this.fullPlayPause.innerHTML = `<span class="material-symbols-rounded">${icon}</span>`;
+      
+      const playlistPlayBtn = document.getElementById('btn-playlist-play');
+      if (playlistPlayBtn) playlistPlayBtn.innerHTML = `<span class="material-symbols-rounded" style="font-size: 32px">${icon}</span>`;
     };
 
     prismPlayer.onRequestSkipNext = () => this.playNext();
@@ -177,6 +180,9 @@ export class UIManager {
     
     this.fullNext.addEventListener('click', skipNext);
     this.fullPrev.addEventListener('click', skipPrev);
+    
+    document.getElementById('mini-btn-next')?.addEventListener('click', skipNext);
+    document.getElementById('mini-btn-prev')?.addEventListener('click', skipPrev);
 
     // Native Range Slider Scrubbing Logic with Haptics
     this.progressSlider.addEventListener('input', () => {
@@ -234,6 +240,10 @@ export class UIManager {
      } else {
          document.documentElement.style.setProperty('--accent-color', '#a8c7fa'); 
      }
+     // Active Track Highlight
+     document.querySelectorAll('.m3-list-item').forEach(el => el.classList.remove('active-track'));
+     const activeItem = document.querySelector(`.m3-list-item[data-trackid="${track.id}"]`);
+     if (activeItem) activeItem.classList.add('active-track');
   }
 
   private async playTrack(index: number, tracks: TrackData[]) {
@@ -346,7 +356,7 @@ export class UIManager {
 
       tracks.forEach((track, idx) => {
           html += `
-             <div class="m3-list-item" data-idx="${idx}">
+             <div class="m3-list-item" data-idx="${idx}" data-trackid="${track.id}">
                  <div class="m3-list-art lazy-art" data-trackid="${track.id}">
                     <span class="material-symbols-rounded fallback-icon" style="color: var(--md-sys-color-on-surface-variant);">music_note</span>
                  </div>
@@ -354,9 +364,14 @@ export class UIManager {
                      <div class="m3-list-title text-ellipsis">${track.title}</div>
                      <div class="m3-list-subtitle text-ellipsis">${track.artist}</div>
                  </div>
-                 <button class="icon-btn btn-delete-track" data-trackid="${track.id}" data-idx="${idx}">
-                    <span class="material-symbols-rounded">delete</span>
-                 </button>
+                 <div style="display:flex; align-items:center;">
+                     <button class="icon-btn btn-add-queue" data-idx="${idx}" style="margin-right: 4px;">
+                        <span class="material-symbols-rounded">queue_music</span>
+                     </button>
+                     <button class="icon-btn btn-delete-track" data-trackid="${track.id}" data-idx="${idx}">
+                        <span class="material-symbols-rounded">delete</span>
+                     </button>
+                 </div>
              </div>
           `;
       });
@@ -392,9 +407,25 @@ export class UIManager {
       const rows = this.viewLayer.querySelectorAll('.m3-list-item');
       rows.forEach(row => {
           row.addEventListener('click', (e) => {
-              if ((e.target as HTMLElement).closest('.btn-delete-track')) return; 
+              if ((e.target as HTMLElement).closest('.btn-delete-track') || (e.target as HTMLElement).closest('.btn-add-queue')) return; 
               const idx = parseInt(row.getAttribute('data-idx')!, 10);
               this.playTrack(idx, tracks);
+          });
+      });
+
+      // Queue Logic
+      const queueBtns = this.viewLayer.querySelectorAll('.btn-add-queue');
+      queueBtns.forEach(btn => {
+          btn.addEventListener('click', () => {
+              const idx = parseInt(btn.getAttribute('data-idx')!, 10);
+              this.currentPlaylistTracks.push(tracks[idx]);
+              if (navigator.vibrate) navigator.vibrate(10);
+              if (this.queueOverlay.classList.contains('open')) {
+                  this.renderQueue();
+              }
+              // Toast or indication? Text change on button temporarily
+              btn.innerHTML = `<span class="material-symbols-rounded" style="color: var(--accent-color)">check</span>`;
+              setTimeout(() => btn.innerHTML = `<span class="material-symbols-rounded">queue_music</span>`, 1000);
           });
       });
 

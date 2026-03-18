@@ -26,13 +26,21 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
     <div class="mini-player-art" id="mini-art">
        <span class="material-symbols-rounded" style="color: var(--md-sys-color-on-surface-variant);">music_note</span>
     </div>
-    <div class="mini-player-info">
+    <div class="mini-player-info" style="flex: 1; min-width: 0; margin-right: 8px;">
       <div class="mini-player-title text-ellipsis" id="mini-title">No Song Playing</div>
       <div class="mini-player-artist text-ellipsis" id="mini-artist">Select a track to play</div>
     </div>
-    <button class="fab-play" id="mini-play-pause">
-      <span class="material-symbols-rounded">play_arrow</span>
-    </button>
+    <div class="mini-player-controls" style="display: flex; align-items: center; gap: 4px;">
+       <button class="icon-btn" id="mini-btn-prev" style="width: 40px; height: 40px; margin: 0;">
+         <span class="material-symbols-rounded" style="font-size: 24px;">skip_previous</span>
+       </button>
+       <button class="fab-play" id="mini-play-pause" style="width: 44px; height: 44px;">
+         <span class="material-symbols-rounded">play_arrow</span>
+       </button>
+       <button class="icon-btn" id="mini-btn-next" style="width: 40px; height: 40px; margin: 0;">
+         <span class="material-symbols-rounded" style="font-size: 24px;">skip_next</span>
+       </button>
+    </div>
   </div>
 
   <!-- Full Screen Player Overlay -->
