@@ -60,14 +60,15 @@ export class LibraryManager {
 
   // File System Access API for Desktop (Persists handles), Fallback for mobile
   async showDirectoryPicker() {
-    if ('showDirectoryPicker' in window) {
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    // Explicitly fallback to HTML5 input on Mobile because Android Chrome exposes the API globally but throws on invocation.
+    if (typeof (window as any).showDirectoryPicker === 'function' && !isMobile) {
       try {
-        // @ts-ignore
-        const dirHandle = await window.showDirectoryPicker();
+        const dirHandle = await (window as any).showDirectoryPicker();
         const files: File[] = [];
         
-        // @ts-ignore
-        for await (const entry of dirHandle.values()) {
+        for await (const entry of (dirHandle as any).values()) {
           if (entry.kind === 'file') {
             const file = await entry.getFile();
             files.push(file);
@@ -75,30 +76,32 @@ export class LibraryManager {
         }
 
         await this.processFiles(files, dirHandle.name);
+        return;
 
       } catch (err: any) {
         if (err.name !== 'AbortError') {
-          console.error('Error selecting directory:', err);
+          console.error('Error selecting directory natively:', err);
         }
+        return; // Native was attempted, do not double-prompt
       }
-    } else {
-      // Mobile / Safari / Firefox Fallback
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.webkitdirectory = true;
-      input.multiple = true;
-      
-      input.onchange = async () => {
-        const files = Array.from(input.files || []);
-        if (files.length > 0) {
-           const pathParts = files[0].webkitRelativePath.split('/');
-           const folderName = pathParts.length > 1 ? pathParts[0] : 'Imported Folder';
-           await this.processFiles(files, folderName);
-        }
-      };
-      
-      input.click();
-    }
+    } 
+    
+    // Mobile / Safari / Firefox Fallback (Executes synchronously to avoid popup blockers)
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.webkitdirectory = true;
+    input.multiple = true;
+    
+    input.onchange = async () => {
+      const files = Array.from(input.files || []);
+      if (files.length > 0) {
+         const pathParts = files[0].webkitRelativePath ? files[0].webkitRelativePath.split('/') : [];
+         const folderName = pathParts.length > 1 ? pathParts[0] : 'Imported Folder';
+         await this.processFiles(files, folderName);
+      }
+    };
+    
+    input.click();
   }
 }
 
