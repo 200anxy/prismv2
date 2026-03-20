@@ -19,6 +19,12 @@ export interface PlaylistData {
   trackIds: string[];
 }
 
+export interface PlayStats {
+  trackId: string;
+  playCount: number;
+  lastPlayed: number; // timestamp
+}
+
 interface PrismDB extends DBSchema {
   tracks: {
     key: string;
@@ -29,23 +35,30 @@ interface PrismDB extends DBSchema {
     key: string;
     value: PlaylistData;
   };
+  playStats: {
+    key: string;
+    value: PlayStats;
+  };
 }
 
 const DB_NAME = 'prism-audio-db';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbPromise: Promise<IDBPDatabase<PrismDB>> | null = null;
 
 export function getDB() {
   if (!dbPromise) {
     dbPromise = openDB<PrismDB>(DB_NAME, DB_VERSION, {
-      upgrade(db) {
-        if (!db.objectStoreNames.contains('tracks')) {
+      upgrade(db, oldVersion) {
+        if (oldVersion < 1) {
           const trackStore = db.createObjectStore('tracks', { keyPath: 'id' });
           trackStore.createIndex('by-playlist', 'playlistId');
-        }
-        if (!db.objectStoreNames.contains('playlists')) {
           db.createObjectStore('playlists', { keyPath: 'id' });
+        }
+        if (oldVersion < 2) {
+          if (!db.objectStoreNames.contains('playStats')) {
+            db.createObjectStore('playStats', { keyPath: 'trackId' });
+          }
         }
       },
     });
@@ -95,4 +108,22 @@ export async function deleteTrack(trackId: string, playlistId: string) {
   }
   
   await tx.done;
+}
+
+export async function incrementPlayCount(trackId: string) {
+  const db = await getDB();
+  const existing = await db.get('playStats', trackId);
+  await db.put('playStats', {
+    trackId,
+    playCount: (existing?.playCount || 0) + 1,
+    lastPlayed: Date.now(),
+  });
+}
+
+export async function getPlayCounts(): Promise<Map<string, number>> {
+  const db = await getDB();
+  const all = await db.getAll('playStats');
+  const map = new Map<string, number>();
+  all.forEach(s => map.set(s.trackId, s.playCount));
+  return map;
 }

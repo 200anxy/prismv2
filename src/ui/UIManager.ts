@@ -1,6 +1,6 @@
 import { libraryManager } from '../storage/Library';
 import { prismPlayer } from '../audio/Player';
-import { type TrackData, deleteTrack } from '../storage/db';
+import { type TrackData, deleteTrack, incrementPlayCount, getPlayCounts } from '../storage/db';
 import Sortable from 'sortablejs';
 
 export class UIManager {
@@ -43,6 +43,7 @@ export class UIManager {
     private isRepeat: boolean = false;
     private isScrubbing: boolean = false;
     private sortableInstance: Sortable | null = null;
+    private currentSortMode: string = 'default';
 
     constructor() { }
 
@@ -80,20 +81,24 @@ export class UIManager {
 
         this.bindEvents();
         this.renderLibrary();
+
+        // Set initial history state
+        history.replaceState({ view: 'library' }, '');
     }
 
     private bindEvents() {
         // Nav
         document.getElementById('btn-library')?.addEventListener('click', () => {
-            this.renderLibrary();
+            history.back();
         });
 
         // Settings Toggle
         document.getElementById('btn-settings')?.addEventListener('click', () => {
             this.settingsOverlay.classList.add('open');
+            history.pushState({ view: 'settings' }, '');
         });
         document.getElementById('btn-close-settings')?.addEventListener('click', () => {
-            this.settingsOverlay.classList.remove('open');
+            history.back();
         });
         document.getElementById('btn-clear-db')?.addEventListener('click', async () => {
             if (confirm("Are you sure you want to clear all Prism library data?")) {
@@ -117,10 +122,11 @@ export class UIManager {
         this.miniPlayer.addEventListener('click', (e) => {
             if ((e.target as HTMLElement).closest('.mini-player-controls')) return;
             this.fullPlayer.classList.add('open');
+            history.pushState({ view: 'fullplayer' }, '');
         });
 
         document.getElementById('btn-close-full')?.addEventListener('click', () => {
-            this.fullPlayer.classList.remove('open');
+            history.back();
         });
 
         // Audio Hooks
@@ -128,6 +134,13 @@ export class UIManager {
             const icon = playing ? 'pause' : 'play_arrow';
             this.miniPlayPause.innerHTML = `<span class="material-symbols-rounded">${icon}</span>`;
             this.fullPlayPause.innerHTML = `<span class="material-symbols-rounded">${icon}</span>`;
+
+            // Vinyl disc spin
+            if (localStorage.getItem('prism-vinyl') !== 'false') {
+                this.fullArt.classList.toggle('spinning', playing);
+            } else {
+                this.fullArt.classList.remove('spinning');
+            }
 
             const playlistPlayBtn = document.getElementById('btn-playlist-play');
             if (playlistPlayBtn) playlistPlayBtn.innerHTML = `<span class="material-symbols-rounded" style="font-size: 32px">${icon}</span>`;
@@ -140,9 +153,34 @@ export class UIManager {
         document.getElementById('btn-open-queue')?.addEventListener('click', () => {
             this.renderQueue();
             this.queueOverlay.classList.add('open');
+            history.pushState({ view: 'queue' }, '');
         });
         document.getElementById('btn-close-queue')?.addEventListener('click', () => {
-            this.queueOverlay.classList.remove('open');
+            history.back();
+        });
+
+        // --- History API: Android Back Navigation ---
+        window.addEventListener('popstate', (e) => {
+            const state = e.state as { view?: string } | null;
+            // Close overlays in priority order
+            if (this.queueOverlay.classList.contains('open')) {
+                this.queueOverlay.classList.remove('open');
+                return;
+            }
+            if (this.settingsOverlay.classList.contains('open')) {
+                this.settingsOverlay.classList.remove('open');
+                return;
+            }
+            if (this.fullPlayer.classList.contains('open')) {
+                this.fullPlayer.classList.remove('open');
+                return;
+            }
+            // If we're on a playlist view, go back to library
+            if (this.currentPlaylistId && state?.view === 'library') {
+                this.renderLibrary();
+                this.currentPlaylistId = null;
+                return;
+            }
         });
 
         prismPlayer.onTrackChange = (track) => {
@@ -202,6 +240,58 @@ export class UIManager {
         });
 
         // Shuffle & Repeat
+
+        // --- Full Player Swipe Gestures ---
+        const fullContent = document.querySelector('.full-player-content') as HTMLElement;
+        if (fullContent) {
+            let startX = 0;
+            let startY = 0;
+            let swiping = false;
+
+            fullContent.addEventListener('touchstart', (e) => {
+                // Don't intercept slider scrubbing
+                if ((e.target as HTMLElement).closest('.full-progress-container')) return;
+                startX = e.touches[0].clientX;
+                startY = e.touches[0].clientY;
+                swiping = true;
+            }, { passive: true });
+
+            fullContent.addEventListener('touchmove', (e) => {
+                if (!swiping) return;
+                if ((e.target as HTMLElement).closest('.full-progress-container')) return;
+                const dx = e.touches[0].clientX - startX;
+                const dy = e.touches[0].clientY - startY;
+                // Only give feedback for horizontal swipes
+                if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 20) {
+                    fullContent.style.transform = `translateX(${dx * 0.4}px)`;
+                } else if (dy > 20 && Math.abs(dy) > Math.abs(dx)) {
+                    fullContent.style.transform = `translateY(${dy * 0.3}px)`;
+                }
+            }, { passive: true });
+
+            fullContent.addEventListener('touchend', (e) => {
+                if (!swiping) return;
+                swiping = false;
+                fullContent.style.transform = '';
+                const endX = e.changedTouches[0].clientX;
+                const endY = e.changedTouches[0].clientY;
+                const dx = endX - startX;
+                const dy = endY - startY;
+
+                // Horizontal swipe for skip (threshold 80px, vertical drift < 60px)
+                if (Math.abs(dx) > 80 && Math.abs(dy) < 60) {
+                    if (navigator.vibrate) navigator.vibrate(15);
+                    if (dx < 0) this.playNext();  // Swipe left = next
+                    else this.playPrev();          // Swipe right = prev
+                    return;
+                }
+
+                // Vertical swipe down to dismiss (threshold 100px, horizontal drift < 60px)
+                if (dy > 100 && Math.abs(dx) < 60) {
+                    history.back(); // Close full player via history
+                }
+            });
+        }
         this.btnShuffle.addEventListener('click', () => {
             this.isShuffle = !this.isShuffle;
             this.btnShuffle.classList.toggle('active', this.isShuffle);
@@ -260,6 +350,7 @@ export class UIManager {
         const nextTrack = tracks[index + 1];
 
         await prismPlayer.playTrack(track, nextTrack);
+        incrementPlayCount(track.id); // fire-and-forget
     }
 
     private playNext() {
@@ -355,6 +446,7 @@ export class UIManager {
                 const name = card.getAttribute('data-name')!;
                 this.topTitle.innerText = name;
                 document.getElementById('btn-library')!.style.opacity = '1';
+                history.pushState({ view: 'playlist', id }, '');
                 this.renderPlaylist(id);
             });
         });
@@ -362,6 +454,7 @@ export class UIManager {
 
     public async renderPlaylist(playlistId: string) {
         const tracks = await libraryManager.getTracksForPlaylist(playlistId);
+        const playCounts = await getPlayCounts();
 
         let html = `
         <div class="playlist-header">
@@ -372,10 +465,30 @@ export class UIManager {
               <span class="material-symbols-rounded">shuffle</span> Shuffle
            </button>
         </div>
+        <div class="sort-chip-bar">
+           <button class="sort-chip ${this.currentSortMode.startsWith('title') ? 'active' : ''}" data-sort="title">
+              Title <span class="material-symbols-rounded" style="font-size:16px;">${this.currentSortMode === 'title-desc' ? 'arrow_downward' : 'arrow_upward'}</span>
+           </button>
+           <button class="sort-chip ${this.currentSortMode.startsWith('artist') ? 'active' : ''}" data-sort="artist">
+              Artist <span class="material-symbols-rounded" style="font-size:16px;">${this.currentSortMode === 'artist-desc' ? 'arrow_downward' : 'arrow_upward'}</span>
+           </button>
+           <button class="sort-chip ${this.currentSortMode.startsWith('duration') ? 'active' : ''}" data-sort="duration">
+              Duration <span class="material-symbols-rounded" style="font-size:16px;">${this.currentSortMode === 'duration-desc' ? 'arrow_downward' : 'arrow_upward'}</span>
+           </button>
+        </div>
         <div style="display: flex; flex-direction: column;">
       `;
 
-        tracks.forEach((track, idx) => {
+        // Sort tracks
+        const sortedTracks = [...tracks];
+        if (this.currentSortMode === 'title-asc') sortedTracks.sort((a, b) => a.title.localeCompare(b.title));
+        else if (this.currentSortMode === 'title-desc') sortedTracks.sort((a, b) => b.title.localeCompare(a.title));
+        else if (this.currentSortMode === 'artist-asc') sortedTracks.sort((a, b) => a.artist.localeCompare(b.artist));
+        else if (this.currentSortMode === 'artist-desc') sortedTracks.sort((a, b) => b.artist.localeCompare(a.artist));
+        else if (this.currentSortMode === 'duration-asc') sortedTracks.sort((a, b) => (a.duration || 0) - (b.duration || 0));
+        else if (this.currentSortMode === 'duration-desc') sortedTracks.sort((a, b) => (b.duration || 0) - (a.duration || 0));
+
+        sortedTracks.forEach((track, idx) => {
             html += `
              <div class="m3-list-item" data-idx="${idx}" data-trackid="${track.id}">
                  <div class="m3-list-art lazy-art" data-trackid="${track.id}">
@@ -383,7 +496,7 @@ export class UIManager {
                  </div>
                  <div class="m3-list-text">
                      <div class="m3-list-title text-ellipsis">${track.title}</div>
-                     <div class="m3-list-subtitle text-ellipsis">${track.artist}</div>
+                     <div class="m3-list-subtitle text-ellipsis">${track.artist}${localStorage.getItem('prism-playcounts') !== 'false' && playCounts.get(track.id) ? ` • ${playCounts.get(track.id)} play${playCounts.get(track.id)! > 1 ? 's' : ''}` : ''}</div>
                  </div>
                  <div class="m3-list-actions">
                      <button class="icon-btn btn-add-queue" data-idx="${idx}">
@@ -398,6 +511,21 @@ export class UIManager {
         });
         html += `</div>`;
         this.viewLayer.innerHTML = html;
+
+        // Sort chip handlers
+        this.viewLayer.querySelectorAll('.sort-chip').forEach(chip => {
+            chip.addEventListener('click', () => {
+                const field = chip.getAttribute('data-sort')!;
+                if (this.currentSortMode === `${field}-asc`) {
+                    this.currentSortMode = `${field}-desc`;
+                } else if (this.currentSortMode === `${field}-desc`) {
+                    this.currentSortMode = 'default';
+                } else {
+                    this.currentSortMode = `${field}-asc`;
+                }
+                this.renderPlaylist(playlistId);
+            });
+        });
 
         // Header Actions
         const btnPlaylistShuffle = document.getElementById('btn-playlist-shuffle');
@@ -416,7 +544,7 @@ export class UIManager {
                     this.btnShuffle.classList.remove('active');
                     if (btnPlaylistShuffle) btnPlaylistShuffle.classList.remove('active');
                     this.currentPlaylistId = playlistId;
-                    this.playTrack(0, tracks);
+                    this.playTrack(0, sortedTracks);
                 }
             }
         });
@@ -429,8 +557,8 @@ export class UIManager {
 
                 if (this.isShuffle && this.currentPlaylistId !== playlistId) {
                     this.currentPlaylistId = playlistId;
-                    const randIdx = Math.floor(Math.random() * tracks.length);
-                    this.playTrack(randIdx, tracks);
+                    const randIdx = Math.floor(Math.random() * sortedTracks.length);
+                    this.playTrack(randIdx, sortedTracks);
                 }
             }
         });
@@ -445,7 +573,7 @@ export class UIManager {
                 }
                 this.currentPlaylistId = playlistId;
                 const idx = parseInt(row.getAttribute('data-idx')!, 10);
-                this.playTrack(idx, tracks);
+                this.playTrack(idx, sortedTracks);
             });
         });
 
@@ -455,7 +583,7 @@ export class UIManager {
                 e.preventDefault();
                 e.stopImmediatePropagation();
                 const idx = parseInt(btn.getAttribute('data-idx')!, 10);
-                this.userQueue.push(tracks[idx]);
+                this.userQueue.push(sortedTracks[idx]);
                 if (navigator.vibrate) navigator.vibrate(10);
                 if (this.queueOverlay.classList.contains('open')) {
                     this.renderQueue();
@@ -606,6 +734,21 @@ export class UIManager {
                     }
                 }
             });
+        }
+    }
+
+    // --- Settings UI API ---
+    public updateVinylState(playing: boolean) {
+        if (localStorage.getItem('prism-vinyl') !== 'false') {
+            this.fullArt.classList.toggle('spinning', playing);
+        } else {
+            this.fullArt.classList.remove('spinning');
+        }
+    }
+
+    public refreshCurrentPlaylist() {
+        if (this.currentPlaylistId) {
+            this.renderPlaylist(this.currentPlaylistId);
         }
     }
 

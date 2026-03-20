@@ -1,5 +1,6 @@
 import './style.css';
 import { uiManager } from './ui/UIManager';
+import { prismPlayer } from './audio/Player';
 import { bindSilentReauth } from './utils/permission';
 import { registerSW } from 'virtual:pwa-register';
 
@@ -119,6 +120,41 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
         </div>
       </div>
       <div class="settings-group">
+        <h2>Playback</h2>
+        <div class="settings-card">
+          <div class="settings-item">
+            <div class="settings-item-text">
+              <span>Crossfade</span>
+              <small>Smoothly blend between tracks</small>
+            </div>
+            <label class="m3-switch">
+              <input type="checkbox" id="toggle-crossfade" ${localStorage.getItem('prism-crossfade') === 'true' ? 'checked' : ''}>
+              <span class="m3-switch-slider"></span>
+            </label>
+          </div>
+          <div class="settings-item">
+            <div class="settings-item-text">
+              <span>Animated Vinyl Art</span>
+              <small>Spin album art while playing</small>
+            </div>
+            <label class="m3-switch">
+              <input type="checkbox" id="toggle-vinyl" ${localStorage.getItem('prism-vinyl') !== 'false' ? 'checked' : ''}>
+              <span class="m3-switch-slider"></span>
+            </label>
+          </div>
+          <div class="settings-item">
+            <div class="settings-item-text">
+              <span>Show Play Counts</span>
+              <small>Display the number of times a track has been played</small>
+            </div>
+            <label class="m3-switch">
+              <input type="checkbox" id="toggle-playcounts" ${localStorage.getItem('prism-playcounts') !== 'false' ? 'checked' : ''}>
+              <span class="m3-switch-slider"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="settings-group">
         <h2>Updates</h2>
         <div class="settings-card">
           <div class="settings-item" id="btn-check-update">
@@ -131,12 +167,12 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
         </div>
       </div>
       <div class="settings-group">
-        <h2>About</h2>
+        <h2>About Prism</h2>
         <div class="settings-card">
-          <div class="settings-item">
+          <div class="settings-item pointer-events-none">
             <div class="settings-item-text">
-              <span>Prism PWA</span>
-              <small>Build ${__APP_VERSION__} • ${__BUILD_DATE__}</small>
+              <span>Version</span>
+              <small>${__APP_VERSION__} (${__BUILD_DATE__})</small>
             </div>
             <span class="material-symbols-rounded">info</span>
           </div>
@@ -168,6 +204,40 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
 
 // Initialize UI Managers and listeners
 uiManager.init();
+
+// Settings - Toggles
+document.getElementById('toggle-crossfade')?.addEventListener('change', (e) => {
+  const enabled = (e.target as HTMLInputElement).checked;
+  prismPlayer.setCrossfade(enabled);
+});
+
+document.getElementById('toggle-vinyl')?.addEventListener('change', (e) => {
+  const enabled = (e.target as HTMLInputElement).checked;
+  localStorage.setItem('prism-vinyl', enabled ? 'true' : 'false');
+  // Re-trigger current state
+  uiManager.updateVinylState(prismPlayer.getIsPlaying());
+});
+
+document.getElementById('toggle-playcounts')?.addEventListener('change', (e) => {
+  const enabled = (e.target as HTMLInputElement).checked;
+  localStorage.setItem('prism-playcounts', enabled ? 'true' : 'false');
+  // Re-render playlist if it's the current view
+  uiManager.refreshCurrentPlaylist();
+});
+
+// --- Changelog ---
+const lastSeenVersion = localStorage.getItem('prism-last-changelog-version');
+if (lastSeenVersion !== __APP_VERSION__) {
+  const changelogDialog = document.getElementById('changelog-dialog') as HTMLDialogElement;
+  if (changelogDialog) {
+    changelogDialog.showModal();
+    
+    document.getElementById('btn-close-changelog')?.addEventListener('click', () => {
+      changelogDialog.close();
+      localStorage.setItem('prism-last-changelog-version', __APP_VERSION__);
+    }, { once: true });
+  }
+}
 
 // --- PWA Service Worker Update ---
 let swUpdateCallback: ((reloadPage?: boolean) => void) | undefined;
