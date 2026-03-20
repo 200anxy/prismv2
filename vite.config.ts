@@ -18,7 +18,7 @@ export default defineConfig({
       manifest: {
         name: 'Prism',
         short_name: 'Prism',
-        description: 'A flagship-grade, offline-first PWA for audiophile-level local music playback.',
+        description: 'A flagship-grade, offline-first PWA for local music playback.',
         theme_color: '#000000',
         background_color: '#000000',
         display: 'standalone',
