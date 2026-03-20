@@ -3,6 +3,9 @@ import { uiManager } from './ui/UIManager';
 import { bindSilentReauth } from './utils/permission';
 import { registerSW } from 'virtual:pwa-register';
 
+declare const __APP_VERSION__: string;
+declare const __BUILD_DATE__: string;
+
 bindSilentReauth();
 
 (window as any).uiManager = uiManager;
@@ -133,7 +136,7 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
           <div class="settings-item">
             <div class="settings-item-text">
               <span>Prism PWA</span>
-              <small>Version 1.0.0 • Material 3 Expressive</small>
+              <small>Build ${__APP_VERSION__} • ${__BUILD_DATE__}</small>
             </div>
             <span class="material-symbols-rounded">info</span>
           </div>

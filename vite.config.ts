@@ -1,8 +1,16 @@
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import { execSync } from 'child_process';
+
+const commitHash = execSync('git rev-parse --short HEAD').toString().trim();
+const buildDate = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
 export default defineConfig({
   base: './',
+  define: {
+    __APP_VERSION__: JSON.stringify(commitHash),
+    __BUILD_DATE__: JSON.stringify(buildDate),
+  },
   plugins: [
     VitePWA({
       registerType: 'prompt', // We want to control the update prompt
