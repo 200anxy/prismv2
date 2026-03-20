@@ -207,6 +207,10 @@ export class PrismPlayer {
     return this.isPlaying;
   }
 
+  public getCurrentTrack(): TrackData | null {
+    return this.currentTrack;
+  }
+
   // --- Media Session API ---
   private setupMediaSession(track: TrackData) {
       if ('mediaSession' in navigator) {

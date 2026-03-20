@@ -293,12 +293,18 @@ export class UIManager {
             });
         }
         this.btnShuffle.addEventListener('click', () => {
-            this.isShuffle = !this.isShuffle;
-            this.btnShuffle.classList.toggle('active', this.isShuffle);
+            if (this.currentPlaylistTracks.length > 0) {
+                this.isShuffle = !this.isShuffle;
+                this.btnShuffle.classList.toggle('active', this.isShuffle);
+                this.updatePreload();
+            }
         });
         this.btnRepeat.addEventListener('click', () => {
-            this.isRepeat = !this.isRepeat;
-            this.btnRepeat.classList.toggle('active', this.isRepeat);
+            if (this.currentPlaylistTracks.length > 0) {
+                this.isRepeat = !this.isRepeat;
+                this.btnRepeat.classList.toggle('active', this.isRepeat);
+                this.updatePreload();
+            }
             this.btnRepeat.innerHTML = `<span class="material-symbols-rounded">${this.isRepeat ? 'repeat_one' : 'repeat'}</span>`;
         });
     }
@@ -347,23 +353,48 @@ export class UIManager {
         this.currentPlaylistTracks = tracks;
         this.currentTrackIndex = index;
         const track = tracks[index];
-        const nextTrack = tracks[index + 1];
+        const nextTrack = this.getUpcomingTrack();
 
         await prismPlayer.playTrack(track, nextTrack);
         incrementPlayCount(track.id); // fire-and-forget
     }
 
+    private getUpcomingTrack(): TrackData | undefined {
+        if (this.userQueue.length > 0) return this.userQueue[0];
+        if (this.currentPlaylistTracks.length === 0) return undefined;
+
+        let nextIdx = this.currentTrackIndex + 1;
+        if (this.isShuffle) {
+            // Pick a random track but avoid the current one if possible
+            let randIdx = Math.floor(Math.random() * this.currentPlaylistTracks.length);
+            if (randIdx === this.currentTrackIndex && this.currentPlaylistTracks.length > 1) {
+                randIdx = (randIdx + 1) % this.currentPlaylistTracks.length;
+            }
+            return this.currentPlaylistTracks[randIdx];
+        }
+        
+        if (nextIdx < this.currentPlaylistTracks.length) return this.currentPlaylistTracks[nextIdx];
+        if (this.isRepeat) return this.currentPlaylistTracks[0];
+        return undefined;
+    }
+
+    private updatePreload() {
+        if (prismPlayer.getIsPlaying() || prismPlayer.getCurrentTrack()) {
+            const upcoming = this.getUpcomingTrack();
+            if (upcoming) prismPlayer.preloadNext(upcoming);
+        }
+    }
+
     private playNext() {
         // 1. Drain user queue first (Spotify-style "Next in Queue")
         if (this.userQueue.length > 0) {
-            const nextTrack = this.userQueue.shift()!;
+            const track = this.userQueue.shift()!;
+            const nextTrackToPreload = this.getUpcomingTrack();
+            
             // Play it directly — don't search playlist (the same song could be in both)
-            prismPlayer.playTrack(nextTrack);
-            this.updatePlayerUI(nextTrack);
+            prismPlayer.playTrack(track, nextTrackToPreload);
+            incrementPlayCount(track.id);
             // Don't change currentTrackIndex — so playlist resumes from the right spot after
-            if (this.queueOverlay.classList.contains('open')) {
-                this.renderQueue();
-            }
             return;
         }
 
@@ -373,6 +404,9 @@ export class UIManager {
 
         if (this.isShuffle) {
             nextIdx = Math.floor(Math.random() * this.currentPlaylistTracks.length);
+            if (nextIdx === this.currentTrackIndex && this.currentPlaylistTracks.length > 1) {
+                nextIdx = (nextIdx + 1) % this.currentPlaylistTracks.length;
+            }
         } else if (nextIdx >= this.currentPlaylistTracks.length) {
             if (this.isRepeat) nextIdx = 0;
             else return;
@@ -584,6 +618,7 @@ export class UIManager {
                 e.stopImmediatePropagation();
                 const idx = parseInt(btn.getAttribute('data-idx')!, 10);
                 this.userQueue.push(sortedTracks[idx]);
+                this.updatePreload(); // ensure new queue item is preloaded for gapless
                 if (navigator.vibrate) navigator.vibrate(10);
                 if (this.queueOverlay.classList.contains('open')) {
                     this.renderQueue();
@@ -691,7 +726,10 @@ export class UIManager {
                         <span style="font-size:0.75rem; font-weight:300; color:var(--md-sys-color-on-surface-variant);">${track.artist}</span>
                     </div>
                     <div class="queue-item-actions">
-                       <span class="material-symbols-rounded" style="color:var(--md-sys-color-on-surface-variant); cursor: grab;">drag_handle</span>
+                       <button class="icon-btn btn-remove-queue" data-uq-idx="${idx}" style="width: 32px; height: 32px;">
+                          <span class="material-symbols-rounded" style="color:var(--md-sys-color-on-surface-variant); font-size: 20px;">close</span>
+                       </button>
+                       <span class="material-symbols-rounded" style="color:var(--md-sys-color-on-surface-variant); cursor: grab; padding-left: 4px;">drag_handle</span>
                     </div>
                 </div>
               `;
@@ -730,11 +768,24 @@ export class UIManager {
                     if (evt.oldIndex !== undefined && evt.newIndex !== undefined && evt.oldIndex !== evt.newIndex) {
                         const item = this.userQueue.splice(evt.oldIndex, 1)[0];
                         this.userQueue.splice(evt.newIndex, 0, item);
+                        this.updatePreload();
                         this.renderQueue();
                     }
                 }
             });
         }
+
+        // Bind remove queue item
+        this.queueList.querySelectorAll('.btn-remove-queue').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (navigator.vibrate) navigator.vibrate(10);
+                const idx = parseInt(btn.getAttribute('data-uq-idx')!, 10);
+                this.userQueue.splice(idx, 1);
+                this.updatePreload();
+                this.renderQueue();
+            });
+        });
     }
 
     // --- Settings UI API ---
