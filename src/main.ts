@@ -200,6 +200,25 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
     <span style="flex:1; font-size: 0.875rem;">A new version is available</span>
     <button class="update-toast-btn" id="btn-apply-update">Update</button>
   </div>
+
+  <dialog id="changelog-dialog" class="m3-dialog">
+    <div class="m3-dialog-content">
+      <h2 class="m3-dialog-title">What's New in Prism 💎</h2>
+      <div class="m3-dialog-body mt-2">
+        <ul style="padding-left: 20px; line-height: 1.6;">
+          <li><strong>Android Back Navigation:</strong> Overlays now integrate with your system back gesture history.</li>
+          <li><strong>Sort Options:</strong> Sort your playlists by Title, Artist, or Duration.</li>
+          <li><strong>Animated Vinyl Art:</strong> Album art now spins while playing! (Toggle in Settings).</li>
+          <li><strong>Swipe Gestures:</strong> Swipe left/right on the full player to skip tracks, swipe down to close.</li>
+          <li><strong>Play Counts:</strong> See how many times you've played a track automatically tracked.</li>
+          <li><strong>Gapless Crossfade:</strong> Smoothly blend between songs (Toggle & Customize in Settings).</li>
+        </ul>
+      </div>
+      <div class="m3-dialog-actions mt-4">
+        <button class="m3-btn m3-btn-filled" id="btn-close-changelog" style="background: var(--accent-color); color: var(--on-accent-color); border: none; padding: 10px 24px; border-radius: 20px; font-weight: 600; cursor: pointer;">Awesome!</button>
+      </div>
+    </div>
+  </dialog>
 `;
 
 // Initialize UI Managers and listeners
