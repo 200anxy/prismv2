@@ -484,32 +484,11 @@ export class UIManager {
 
     private attachLongPressDelete() {
         const items = this.viewLayer.querySelectorAll('.m3-list-item');
-        const MOVE_THRESHOLD = 10; // px — ignore small finger jitter on mobile
         items.forEach(item => {
-            let timer: number | null = null;
-            let startX = 0;
-            let startY = 0;
-            item.addEventListener('pointerdown', (ev) => {
-                const e = ev as PointerEvent;
-                startX = e.clientX;
-                startY = e.clientY;
-                timer = window.setTimeout(() => {
-                    if (navigator.vibrate) navigator.vibrate(20);
-                    item.classList.toggle('show-delete');
-                }, 500);
-            });
-            item.addEventListener('pointerup', () => { if (timer) clearTimeout(timer); });
-            item.addEventListener('pointercancel', () => { if (timer) clearTimeout(timer); });
-            item.addEventListener('pointermove', (ev) => {
-                if (timer) {
-                    const e = ev as PointerEvent;
-                    const dx = e.clientX - startX;
-                    const dy = e.clientY - startY;
-                    if (Math.sqrt(dx * dx + dy * dy) > MOVE_THRESHOLD) {
-                        clearTimeout(timer);
-                        timer = null;
-                    }
-                }
+            item.addEventListener('contextmenu', (e) => {
+                e.preventDefault(); // Prevent native context menu
+                if (navigator.vibrate) navigator.vibrate(20);
+                item.classList.toggle('show-delete');
             });
         });
     }

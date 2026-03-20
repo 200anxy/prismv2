@@ -895,3 +895,44 @@ body.has-track #ambient-overlay {
   color: var(--md-sys-color-on-surface-variant);
   max-width: 260px;
 }
+
+/* ═══════════════════════════════════════ */
+/*   UPDATE TOAST                        */
+/* ═══════════════════════════════════════ */
+.update-toast {
+  position: fixed;
+  bottom: -80px;
+  left: 12px;
+  right: 12px;
+  height: 56px;
+  background-color: var(--md-sys-color-surface-container-highest);
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  padding: 0 8px 0 16px;
+  gap: 12px;
+  z-index: 500;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  transition: bottom var(--md-sys-motion-duration-long) var(--md-sys-motion-easing-emphasized);
+}
+
+.update-toast.visible {
+  bottom: 96px;
+}
+
+.update-toast-btn {
+  background-color: var(--accent-color);
+  color: var(--on-accent-color);
+  border: none;
+  border-radius: 12px;
+  padding: 8px 20px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: transform 0.15s;
+}
+
+.update-toast-btn:active {
+  transform: scale(0.95);
+}

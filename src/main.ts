@@ -1,6 +1,7 @@
 import './style.css';
 import { uiManager } from './ui/UIManager';
 import { bindSilentReauth } from './utils/permission';
+import { registerSW } from 'virtual:pwa-register';
 
 bindSilentReauth();
 
@@ -115,6 +116,18 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
         </div>
       </div>
       <div class="settings-group">
+        <h2>Updates</h2>
+        <div class="settings-card">
+          <div class="settings-item" id="btn-check-update">
+            <div class="settings-item-text">
+              <span>Check for Updates</span>
+              <small id="update-status-text">Tap to check for a new version</small>
+            </div>
+            <span class="material-symbols-rounded">system_update</span>
+          </div>
+        </div>
+      </div>
+      <div class="settings-group">
         <h2>About</h2>
         <div class="settings-card">
           <div class="settings-item">
@@ -142,7 +155,59 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
       <div style="text-align:center; margin-top:40px; color:var(--md-sys-color-on-surface-variant);">No upcoming tracks</div>
     </div>
   </div>
+
+  <div class="update-toast" id="update-toast">
+    <span class="material-symbols-rounded" style="color: var(--accent-color);">system_update</span>
+    <span style="flex:1; font-size: 0.875rem;">A new version is available</span>
+    <button class="update-toast-btn" id="btn-apply-update">Update</button>
+  </div>
 `;
 
 // Initialize UI Managers and listeners
 uiManager.init();
+
+// --- PWA Service Worker Update ---
+let swUpdateCallback: ((reloadPage?: boolean) => void) | undefined;
+
+const updateSW = registerSW({
+  onNeedRefresh() {
+    // Show the update toast
+    const toast = document.getElementById('update-toast');
+    if (toast) toast.classList.add('visible');
+    // Update settings text
+    const statusText = document.getElementById('update-status-text');
+    if (statusText) statusText.textContent = 'Update available! Tap to apply.';
+  },
+  onOfflineReady() {
+    console.log('[Prism] App is ready for offline use.');
+  }
+});
+
+swUpdateCallback = updateSW;
+
+// Apply update button (toast)
+document.getElementById('btn-apply-update')?.addEventListener('click', () => {
+  if (swUpdateCallback) swUpdateCallback(true);
+});
+
+// Check for updates button (settings)
+document.getElementById('btn-check-update')?.addEventListener('click', async () => {
+  const statusText = document.getElementById('update-status-text');
+  if (statusText) statusText.textContent = 'Checking...';
+  try {
+    const reg = await navigator.serviceWorker?.getRegistration();
+    if (reg) {
+      await reg.update();
+      // If no new SW was found, onNeedRefresh won't fire
+      setTimeout(() => {
+        if (statusText && !document.getElementById('update-toast')?.classList.contains('visible')) {
+          statusText.textContent = 'You are on the latest version';
+        }
+      }, 2000);
+    } else {
+      if (statusText) statusText.textContent = 'No service worker registered';
+    }
+  } catch {
+    if (statusText) statusText.textContent = 'Failed to check for updates';
+  }
+});
