@@ -16,7 +16,7 @@ export class PrismPlayer {
   private crossfadeEnabled: boolean = false;
   private crossfadeDuration: number = 3; // seconds
   private isCrossfading: boolean = false;
-  private crossfadeRaf: number | null = null;
+  private crossfadeTimer: number | null = null;
 
   public onTimeUpdate: (currentTime: number, duration: number) => void = () => {};
   public onTrackChange: (track: TrackData) => void = () => {};
@@ -33,6 +33,19 @@ export class PrismPlayer {
     this.crossfadeEnabled = localStorage.getItem('prism-crossfade') === 'true';
 
     this.attachEventListeners(this.activeAudio);
+    this.bindVisibilityRecovery();
+  }
+
+  // --- Visibility Recovery ---
+  // On some Android/iOS builds, the browser silently pauses the audio element
+  // when the page goes hidden (screen off) without firing a user-visible pause.
+  // When the screen comes back on we detect this and immediately resume.
+  private bindVisibilityRecovery() {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && this.isPlaying && this.activeAudio.paused) {
+        this.activeAudio.play().catch(e => console.warn('[Prism] Recovery play failed:', e));
+      }
+    });
   }
 
   private attachEventListeners(audio: HTMLAudioElement) {
@@ -75,24 +88,55 @@ export class PrismPlayer {
   }
 
   public async playTrack(track: TrackData, nextTrackInQueue?: TrackData) {
-    // Cancel any ongoing crossfade
-    if (this.crossfadeRaf) {
-      cancelAnimationFrame(this.crossfadeRaf);
-      this.crossfadeRaf = null;
+    if (this.crossfadeTimer) {
+      clearInterval(this.crossfadeTimer);
+      this.crossfadeTimer = null;
     }
     this.isCrossfading = false;
 
-    // Memory management: Revoke previous URL
+    // Fast-path: The track was already automatically transitioned into (crossfade completion)
+    if (this.currentTrack && this.currentTrack.id === track.id && !this.activeAudio.paused && this.activeAudio.currentTime > 0) {
+         this.nextTrack = nextTrackInQueue || null;
+         if (this.nextTrack) Object.assign(this.nextTrack, nextTrackInQueue); // deepish
+         return;
+    }
+
+    // Fast-path: Synchronous preloaded background playback!
+    if (this.nextTrack && track.id === this.nextTrack.id && this.standbyUrl) {
+       const oldActiveUrl = this.activeUrl;
+       
+       this.activeUrl = this.standbyUrl;
+       this.standbyUrl = null;
+       
+       const oldActiveAudio = this.activeAudio;
+       this.activeAudio = this.standbyAudio;
+       this.standbyAudio = oldActiveAudio;
+       
+       oldActiveAudio.pause();
+       oldActiveAudio.removeAttribute('src');
+       oldActiveAudio.load();
+       if (oldActiveUrl) URL.revokeObjectURL(oldActiveUrl);
+       
+       this.currentTrack = track;
+       this.nextTrack = nextTrackInQueue || null;
+       this.attachEventListeners(this.activeAudio);
+       
+       // Synchronous play keeps Wake Lock active in iOS/Android
+       this.activeAudio.play().catch(e => console.error("Background play error:", e));
+       this.onTrackChange(track);
+       this.setupMediaSession(track);
+       return;
+    }
+
+    // Default fully async path (user explicitly clicked a new song)
     if (this.activeUrl) URL.revokeObjectURL(this.activeUrl);
     if (this.standbyUrl) URL.revokeObjectURL(this.standbyUrl);
     this.standbyUrl = null;
     
-    // Stop standby
     this.standbyAudio.pause();
     this.standbyAudio.removeAttribute('src');
     this.standbyAudio.load();
 
-    // Extract file
     const file = track.fileRef instanceof File ? track.fileRef : await (track.fileRef as FileSystemFileHandle).getFile();
     this.activeUrl = URL.createObjectURL(file);
     
@@ -110,9 +154,8 @@ export class PrismPlayer {
     if (!this.standbyUrl || this.isCrossfading) return;
     this.isCrossfading = true;
 
-    // Start the standby audio
     this.standbyAudio.volume = 0;
-    this.standbyAudio.play();
+    this.standbyAudio.play().catch(e => console.error("Crossfade standby play blocked", e));
 
     const fadeStart = performance.now();
     const fadeDurationMs = this.crossfadeDuration * 1000;
@@ -126,31 +169,35 @@ export class PrismPlayer {
       fadeActive.volume = 1 - progress;
       fadeIn.volume = progress;
 
-      if (progress < 1) {
-        this.crossfadeRaf = requestAnimationFrame(doFade);
-      } else {
-        // Crossfade complete — swap
+      if (progress >= 1) {
+        if (this.crossfadeTimer) {
+          clearInterval(this.crossfadeTimer);
+          this.crossfadeTimer = null;
+        }
+        
+        const oldActiveUrl = this.activeUrl;
+        
         fadeActive.pause();
         fadeActive.removeAttribute('src');
         fadeActive.load();
-        if (this.activeUrl) URL.revokeObjectURL(this.activeUrl);
+        if (oldActiveUrl) URL.revokeObjectURL(oldActiveUrl);
 
-        // Swap references
         this.activeAudio = fadeIn;
         this.standbyAudio = fadeActive;
         this.activeUrl = this.standbyUrl;
         this.standbyUrl = null;
         this.isCrossfading = false;
+        
+        // Update track context BEFORE notifying UIManager, so `playTrack` skips async file read!
+        this.currentTrack = this.nextTrack;
 
-        // Reattach event listeners to the new active audio
         this.attachEventListeners(this.activeAudio);
-
-        // Signal the skip
         this.onRequestSkipNext();
       }
     };
 
-    this.crossfadeRaf = requestAnimationFrame(doFade);
+    // Use setInterval for background-safe processing across mobile browsers
+    this.crossfadeTimer = window.setInterval(doFade, 50);
   }
 
   public preloadNext(track: TrackData) {
@@ -242,6 +289,19 @@ export class PrismPlayer {
   private updateMediaSessionState() {
       if ('mediaSession' in navigator) {
           navigator.mediaSession.playbackState = this.isPlaying ? 'playing' : 'paused';
+          // Reporting position state keeps the OS audio session alive and
+          // allows the lock screen scrubber to stay accurate.
+          if (this.activeAudio.duration && !isNaN(this.activeAudio.duration)) {
+              try {
+                  navigator.mediaSession.setPositionState({
+                      duration: this.activeAudio.duration,
+                      playbackRate: this.activeAudio.playbackRate,
+                      position: this.activeAudio.currentTime,
+                  });
+              } catch (_) {
+                  // setPositionState may throw if values are out of range
+              }
+          }
       }
   }
 }
