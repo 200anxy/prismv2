@@ -176,6 +176,7 @@ export class UIManager {
             const file = (e.target as HTMLInputElement).files?.[0];
             if (file) {
                 await this.processCSV(file);
+                (e.target as HTMLInputElement).value = '';
             }
         });
 
@@ -916,7 +917,7 @@ export class UIManager {
         
         try {
             const text = await file.text();
-            const lines = text.split('\\n').map(l => l.trim()).filter(l => l);
+            const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l);
             const headers = lines[0].split(',').map(h => h.trim());
             
             const tracks = [];
