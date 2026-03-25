@@ -533,8 +533,11 @@ export class UIManager {
 
         let html = `
         <div class="playlist-header" style="display:flex; align-items:center; gap:16px;">
-           <div class="playlist-header-art" id="btn-upload-playlist-art" style="width:100px; height:100px; border-radius:12px; background:var(--md-sys-color-surface-container-high); display:flex; align-items:center; justify-content:center; cursor:pointer; overflow:hidden; flex-shrink:0;">
-               ${playlist?.customArtworkBlob ? `<img src="${URL.createObjectURL(playlist.customArtworkBlob)}" style="width:100%; height:100%; object-fit:cover;">` : `<span class="material-symbols-rounded" style="color:var(--md-sys-color-on-surface-variant);">add_a_photo</span>`}
+           <div style="position:relative; width:100px; height:100px; flex-shrink:0;">
+               <div class="playlist-header-art" id="btn-upload-playlist-art" style="width:100%; height:100%; border-radius:12px; background:var(--md-sys-color-surface-container-high); display:flex; align-items:center; justify-content:center; cursor:pointer; overflow:hidden;">
+                   ${playlist?.customArtworkBlob ? `<img src="${URL.createObjectURL(playlist.customArtworkBlob)}" style="width:100%; height:100%; object-fit:cover;">` : `<span class="material-symbols-rounded" style="color:var(--md-sys-color-on-surface-variant);">add_a_photo</span>`}
+               </div>
+               ${playlist?.customArtworkBlob ? `<button class="icon-btn" id="btn-remove-playlist-art" style="position:absolute; top:-8px; right:-8px; background:var(--md-sys-color-error); color:var(--md-sys-color-on-error); width:28px; height:28px; border-radius:50%; box-shadow:0 2px 4px rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center;"><span class="material-symbols-rounded" style="font-size:16px;">close</span></button>` : ''}
            </div>
            
            <div style="display:flex; flex-direction:column; gap:8px;">
@@ -635,6 +638,17 @@ export class UIManager {
                 playlist.customArtworkDate = Date.now();
                 // We use dynamic import for addPlaylist to avoid circular deps if needed, 
                 // but db.ts is globally available. Let's just update the DB via libraryManager or fetch it directly.
+                const { addPlaylist } = await import('../storage/db.js');
+                await addPlaylist(playlist);
+                this.renderPlaylist(playlistId);
+            }
+        });
+
+        document.getElementById('btn-remove-playlist-art')?.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            if (playlist && confirm('Remove custom playlist artwork?')) {
+                delete playlist.customArtworkBlob;
+                delete playlist.customArtworkDate;
                 const { addPlaylist } = await import('../storage/db.js');
                 await addPlaylist(playlist);
                 this.renderPlaylist(playlistId);
