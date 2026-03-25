@@ -18,6 +18,8 @@ export interface PlaylistData {
   id: string; // Folder name or path
   name: string;
   trackIds: string[];
+  customArtworkBlob?: Blob;
+  customArtworkDate?: number;
 }
 
 export interface PlayStats {

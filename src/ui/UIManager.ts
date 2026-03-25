@@ -109,6 +109,29 @@ export class UIManager {
             }
         });
 
+        // Art Style & Vinyl Speed Settings
+        document.getElementById('select-art-style')?.addEventListener('change', (e) => {
+            const val = (e.target as HTMLSelectElement).value;
+            localStorage.setItem('prism-art-style', val);
+            const speedContainer = document.getElementById('vinyl-speed-container');
+            if (speedContainer) speedContainer.style.display = val === 'square' ? 'none' : 'flex';
+            this.updateVinylState(prismPlayer.getIsPlaying());
+        });
+
+        document.getElementById('slider-vinyl-speed')?.addEventListener('input', (e) => {
+            const val = (e.target as HTMLInputElement).value;
+            localStorage.setItem('prism-vinyl-speed', val);
+            const label = document.getElementById('vinyl-speed-label');
+            if (label) label.innerText = `${val}s per rotation`;
+            this.updateVinylState(prismPlayer.getIsPlaying());
+        });
+
+        document.getElementById('toggle-ambient-bg')?.addEventListener('change', (e) => {
+            const checked = (e.target as HTMLInputElement).checked;
+            localStorage.setItem('prism-ambient-bg', checked.toString());
+            if (this.nowPlayingTrack) this.updatePlayerUI(this.nowPlayingTrack);
+        });
+
         libraryManager.onLibraryUpdated = () => {
             this.topTitle.innerText = 'Music Library';
             this.renderLibrary();
@@ -137,11 +160,7 @@ export class UIManager {
             this.fullPlayPause.innerHTML = `<span class="material-symbols-rounded">${icon}</span>`;
 
             // Vinyl disc spin
-            if (localStorage.getItem('prism-vinyl') !== 'false') {
-                this.fullArt.classList.toggle('spinning', playing);
-            } else {
-                this.fullArt.classList.remove('spinning');
-            }
+            this.updateVinylState(playing);
 
             const playlistPlayBtn = document.getElementById('btn-playlist-play');
             if (playlistPlayBtn) playlistPlayBtn.innerHTML = `<span class="material-symbols-rounded" style="font-size: 32px">${icon}</span>`;
@@ -229,12 +248,13 @@ export class UIManager {
         document.getElementById('mini-btn-next')?.addEventListener('click', skipNext);
         document.getElementById('mini-btn-prev')?.addEventListener('click', skipPrev);
 
-        // Native Range Slider Scrubbing Logic with Haptics
+        // Native Range Slider Scrubbing Logic with Haptics (Removed vibration for smoother feel)
+        this.progressSlider.setAttribute('step', '0.01'); // Decrease step size for highly granular skipping
+        
         this.progressSlider.addEventListener('input', () => {
             this.isScrubbing = true;
             const pct = parseFloat(this.progressSlider.value);
             this.progressSlider.style.setProperty('--slider-fill', `${pct}%`);
-            if (navigator.vibrate) navigator.vibrate(25);
         });
 
         this.progressSlider.addEventListener('change', () => {
@@ -339,10 +359,19 @@ export class UIManager {
         this.fullArt.innerHTML = constructArt(track.hasArtwork ? track.artworkBlob : undefined);
 
         // Crisp M3 Dynamic Color Injection without vague gradients
+        const ambientEnabled = localStorage.getItem('prism-ambient-bg') !== 'false';
+        let accent = '#a8c7fa';
+        
         if (track.dominantColor) {
-            document.documentElement.style.setProperty('--accent-color', track.dominantColor);
+            accent = track.dominantColor;
+        }
+        
+        document.documentElement.style.setProperty('--accent-color', accent);
+        
+        if (ambientEnabled) {
+            document.documentElement.style.setProperty('--md-sys-color-background', `color-mix(in srgb, ${accent} 8%, #0a0a0a)`);
         } else {
-            document.documentElement.style.setProperty('--accent-color', '#a8c7fa');
+            document.documentElement.style.setProperty('--md-sys-color-background', '#0a0a0a');
         }
         // Active Track Highlight
         document.querySelectorAll('.m3-list-item').forEach(el => el.classList.remove('active-track'));
@@ -495,16 +524,28 @@ export class UIManager {
     public async renderPlaylist(playlistId: string) {
         const tracks = await libraryManager.getTracksForPlaylist(playlistId);
         const playCounts = await getPlayCounts();
+        const playlists = await libraryManager.getAllPlaylists();
+        const playlist = playlists.find(p => p.id === playlistId);
 
         let html = `
-        <div class="playlist-header">
-           <button class="fab-play fab-play-huge" id="btn-playlist-play" style="width: 56px; height: 56px; border-radius: 16px;">
-              <span class="material-symbols-rounded" style="font-size: 32px">play_arrow</span>
-           </button>
-           <button class="extended-fab" id="btn-playlist-shuffle" style="padding: 12px 20px;">
-              <span class="material-symbols-rounded">shuffle</span> Shuffle
-           </button>
+        <div class="playlist-header" style="display:flex; align-items:center; gap:16px;">
+           <div class="playlist-header-art" id="btn-upload-playlist-art" style="width:100px; height:100px; border-radius:12px; background:var(--md-sys-color-surface-container-high); display:flex; align-items:center; justify-content:center; cursor:pointer; overflow:hidden; flex-shrink:0;">
+               ${playlist?.customArtworkBlob ? `<img src="${URL.createObjectURL(playlist.customArtworkBlob)}" style="width:100%; height:100%; object-fit:cover;">` : `<span class="material-symbols-rounded" style="color:var(--md-sys-color-on-surface-variant);">add_a_photo</span>`}
+           </div>
+           
+           <div style="display:flex; flex-direction:column; gap:8px;">
+               <div style="display:flex; align-items:center; gap:8px;">
+                   <button class="fab-play fab-play-huge" id="btn-playlist-play" style="width: 56px; height: 56px; border-radius: 16px;">
+                      <span class="material-symbols-rounded" style="font-size: 32px">play_arrow</span>
+                   </button>
+                   <button class="extended-fab" id="btn-playlist-shuffle" style="padding: 12px 20px;">
+                      <span class="material-symbols-rounded">shuffle</span> Shuffle
+                   </button>
+               </div>
+           </div>
         </div>
+        <input type="file" id="playlist-art-input" accept="image/*" style="display:none;">
+
         <div class="sort-chip-bar">
            <button class="sort-chip ${this.currentSortMode.startsWith('title') ? 'active' : ''}" data-sort="title">
               Title <span class="material-symbols-rounded" style="font-size:16px;">${this.currentSortMode === 'title-desc' ? 'arrow_downward' : 'arrow_upward'}</span>
@@ -577,6 +618,24 @@ export class UIManager {
         if (btnPlaylistShuffle) {
             btnPlaylistShuffle.classList.toggle('active', this.isShuffle);
         }
+        
+        // Playlist Custom Image Upload Binding
+        const artInput = document.getElementById('playlist-art-input') as HTMLInputElement;
+        document.getElementById('btn-upload-playlist-art')?.addEventListener('click', () => {
+             artInput.click();
+        });
+        artInput?.addEventListener('change', async (e) => {
+            const file = (e.target as HTMLInputElement).files?.[0];
+            if (file && playlist) {
+                playlist.customArtworkBlob = file;
+                playlist.customArtworkDate = Date.now();
+                // We use dynamic import for addPlaylist to avoid circular deps if needed, 
+                // but db.ts is globally available. Let's just update the DB via libraryManager or fetch it directly.
+                const { addPlaylist } = await import('../storage/db.js');
+                await addPlaylist(playlist);
+                this.renderPlaylist(playlistId);
+            }
+        });
 
         document.getElementById('btn-playlist-play')?.addEventListener('click', () => {
             if (tracks.length > 0) {
@@ -700,38 +759,54 @@ export class UIManager {
                 if (entry.isIntersecting) {
                     const target = entry.target as HTMLElement;
                     const pid = target.getAttribute('data-playlist-id');
+                    
                     if (pid) {
                         try {
-                            const tracks = await libraryManager.getTracksForPlaylist(pid);
-                            const artTracks = tracks.filter(t => t.hasArtwork && t.artworkBlob).slice(0, 4);
+                            const playlists = await libraryManager.getAllPlaylists();
+                            const playlist = playlists.find(p => p.id === pid);
                             
-                            if (artTracks.length > 0) {
-                                target.innerHTML = ''; // clear folder icon
-                                target.style.display = 'grid';
-                                target.style.gridTemplateColumns = artTracks.length > 1 ? '1fr 1fr' : '1fr';
-                                target.style.gridTemplateRows = artTracks.length > 1 ? '1fr 1fr' : '1fr';
-                                target.style.gap = '2px';
+                            if (playlist?.customArtworkBlob) {
+                                target.innerHTML = '';
                                 target.style.padding = '0';
                                 target.style.overflow = 'hidden';
-                                target.style.backgroundColor = 'transparent';
+                                const img = document.createElement('img');
+                                img.src = URL.createObjectURL(playlist.customArtworkBlob);
+                                img.style.width = '100%';
+                                img.style.height = '100%';
+                                img.style.objectFit = 'cover';
+                                target.appendChild(img);
+                            } else {
+                                const tracks = await libraryManager.getTracksForPlaylist(pid);
+                                const artTracks = tracks.filter(t => t.hasArtwork && t.artworkBlob).slice(0, 4);
                                 
-                                artTracks.forEach(t => {
-                                    const img = document.createElement('img');
-                                    img.src = URL.createObjectURL(t.artworkBlob!);
-                                    img.style.width = '100%';
-                                    img.style.height = '100%';
-                                    img.style.objectFit = 'cover';
-                                    target.appendChild(img);
-                                });
-                                
-                                // Fill remaining with solid color to keep grid structure
-                                if (artTracks.length > 1 && artTracks.length < 4) {
-                                    for(let i = artTracks.length; i < 4; i++) {
-                                        const div = document.createElement('div');
-                                        div.style.backgroundColor = 'var(--md-sys-color-surface-container-high)';
-                                        div.style.width = '100%';
-                                        div.style.height = '100%';
-                                        target.appendChild(div);
+                                if (artTracks.length > 0) {
+                                    target.innerHTML = ''; // clear folder icon
+                                    target.style.display = 'grid';
+                                    target.style.gridTemplateColumns = artTracks.length > 1 ? '1fr 1fr' : '1fr';
+                                    target.style.gridTemplateRows = artTracks.length > 1 ? '1fr 1fr' : '1fr';
+                                    target.style.gap = '2px';
+                                    target.style.padding = '0';
+                                    target.style.overflow = 'hidden';
+                                    target.style.backgroundColor = 'transparent';
+                                    
+                                    artTracks.forEach(t => {
+                                        const img = document.createElement('img');
+                                        img.src = URL.createObjectURL(t.artworkBlob!);
+                                        img.style.width = '100%';
+                                        img.style.height = '100%';
+                                        img.style.objectFit = 'cover';
+                                        target.appendChild(img);
+                                    });
+                                    
+                                    // Fill remaining with solid color to keep grid structure
+                                    if (artTracks.length > 1 && artTracks.length < 4) {
+                                        for(let i = artTracks.length; i < 4; i++) {
+                                            const div = document.createElement('div');
+                                            div.style.backgroundColor = 'var(--md-sys-color-surface-container-high)';
+                                            div.style.width = '100%';
+                                            div.style.height = '100%';
+                                            target.appendChild(div);
+                                        }
                                     }
                                 }
                             }
@@ -790,6 +865,9 @@ export class UIManager {
             this.userQueue.forEach((track, idx) => {
                 html += `
                 <div class="queue-item" data-uq-idx="${idx}" style="cursor: grab;">
+                    <div class="m3-list-art lazy-art" data-trackid="${track.id}" style="width: 36px; height: 36px; margin-right: 12px; border-radius: 6px; flex-shrink: 0;">
+                        <span class="material-symbols-rounded fallback-icon" style="font-size: 20px;">music_note</span>
+                    </div>
                     <div style="flex:1; overflow:hidden; display:flex; flex-direction:column;" class="text-ellipsis">
                         <span style="font-size:0.9375rem; font-weight:500; color:var(--md-sys-color-on-background);">${track.title}</span>
                         <span style="font-size:0.75rem; font-weight:300; color:var(--md-sys-color-on-surface-variant);">${track.artist}</span>
@@ -815,6 +893,9 @@ export class UIManager {
                 upcoming.forEach((track, idx) => {
                     html += `
                     <div class="queue-item" data-pq-idx="${idx}">
+                        <div class="m3-list-art lazy-art" data-trackid="${track.id}" style="width: 36px; height: 36px; margin-right: 12px; border-radius: 6px; flex-shrink: 0;">
+                            <span class="material-symbols-rounded fallback-icon" style="font-size: 20px;">music_note</span>
+                        </div>
                         <div style="flex:1; overflow:hidden; display:flex; flex-direction:column;" class="text-ellipsis">
                             <span style="font-size:0.9375rem; font-weight:400; color:var(--md-sys-color-on-background);">${track.title}</span>
                             <span style="font-size:0.75rem; font-weight:300; color:var(--md-sys-color-on-surface-variant);">${track.artist}</span>
@@ -892,10 +973,17 @@ export class UIManager {
 
     // --- Settings UI API ---
     public updateVinylState(playing: boolean) {
-        if (localStorage.getItem('prism-vinyl') !== 'false') {
-            this.fullArt.classList.toggle('spinning', playing);
+        const style = localStorage.getItem('prism-art-style') || 'vinyl';
+        const speed = localStorage.getItem('prism-vinyl-speed') || '20';
+        
+        this.fullArt.style.animationDuration = `${speed}s`;
+
+        if (style === 'vinyl') {
+            this.fullArt.classList.add('vinyl-mode');
+            if (playing) this.fullArt.classList.add('spinning');
+            else this.fullArt.classList.remove('spinning');
         } else {
-            this.fullArt.classList.remove('spinning');
+            this.fullArt.classList.remove('vinyl-mode', 'spinning');
         }
     }
 

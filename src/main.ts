@@ -134,11 +134,28 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
           </div>
           <div class="settings-item">
             <div class="settings-item-text">
-              <span>Animated Vinyl Art</span>
-              <small>Spin album art while playing</small>
+              <span>Player Art Style</span>
+              <small>Choose vinyl or standard square</small>
+            </div>
+            <select id="select-art-style" class="m3-select" style="background: var(--md-sys-color-surface-container-high); border: 1px solid var(--md-sys-color-outline); color: var(--md-sys-color-on-surface); padding: 6px 12px; border-radius: 8px; font-family: inherit;">
+              <option value="vinyl" ${localStorage.getItem('prism-art-style') !== 'square' ? 'selected' : ''}>Spinning Vinyl</option>
+              <option value="square" ${localStorage.getItem('prism-art-style') === 'square' ? 'selected' : ''}>Static Square</option>
+            </select>
+          </div>
+          <div class="settings-item" id="vinyl-speed-container" style="display: ${localStorage.getItem('prism-art-style') !== 'square' ? 'flex' : 'none'}; padding-top: 0;">
+            <div class="settings-item-text" style="flex:1;">
+              <span>Vinyl Spin Speed</span>
+              <small id="vinyl-speed-label">${localStorage.getItem('prism-vinyl-speed') || '20'}s per rotation</small>
+            </div>
+            <input type="range" id="slider-vinyl-speed" min="2" max="30" step="1" value="${localStorage.getItem('prism-vinyl-speed') || '20'}" style="width: 40%;">
+          </div>
+          <div class="settings-item">
+            <div class="settings-item-text">
+              <span>Adaptive App Background</span>
+              <small>Tint app background with album art color</small>
             </div>
             <label class="m3-switch">
-              <input type="checkbox" id="toggle-vinyl" ${localStorage.getItem('prism-vinyl') !== 'false' ? 'checked' : ''}>
+              <input type="checkbox" id="toggle-ambient-bg" ${localStorage.getItem('prism-ambient-bg') !== 'false' ? 'checked' : ''}>
               <span class="m3-switch-slider"></span>
             </label>
           </div>
