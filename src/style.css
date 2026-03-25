@@ -482,9 +482,9 @@ body {
 }
 
 .full-player-art {
-  width: 280px;
-  height: 280px;
-  border-radius: 50%;
+  width: 320px;
+  height: 320px;
+  border-radius: 20px;
   background-color: var(--md-sys-color-surface-container-highest);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), 0 0 80px var(--accent-glow);
   display: flex;
@@ -493,17 +493,23 @@ body {
   overflow: hidden;
   margin-bottom: 36px;
   position: relative;
-  transition: box-shadow 1.2s var(--md-sys-motion-easing-emphasized);
+  transition: box-shadow 1.2s var(--md-sys-motion-easing-emphasized), border-radius 0.4s ease, width 0.4s ease, height 0.4s ease;
+}
+
+.full-player-art.vinyl-mode {
+  width: 280px;
+  height: 280px;
+  border-radius: 50%;
   animation: spin 8s linear infinite;
   animation-play-state: paused;
 }
 
-.full-player-art.spinning {
+.full-player-art.vinyl-mode.spinning {
   animation-play-state: running;
 }
 
 /* Vinyl grooves overlay + center hole */
-.full-player-art::after {
+.full-player-art.vinyl-mode::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -524,6 +530,11 @@ body {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  border-radius: 20px;
+  transition: border-radius 0.4s ease;
+}
+
+.full-player-art.vinyl-mode img {
   border-radius: 50%;
 }
 

@@ -134,13 +134,13 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
           </div>
           <div class="settings-item">
             <div class="settings-item-text">
-              <span>Player Art Style</span>
-              <small>Choose vinyl or standard square</small>
+              <span>Vinyl Art Mode</span>
+              <small>Display album art as a spinning record</small>
             </div>
-            <select id="select-art-style" class="m3-select" style="background: var(--md-sys-color-surface-container-high); border: 1px solid var(--md-sys-color-outline); color: var(--md-sys-color-on-surface); padding: 6px 12px; border-radius: 8px; font-family: inherit;">
-              <option value="vinyl" ${localStorage.getItem('prism-art-style') !== 'square' ? 'selected' : ''}>Spinning Vinyl</option>
-              <option value="square" ${localStorage.getItem('prism-art-style') === 'square' ? 'selected' : ''}>Static Square</option>
-            </select>
+            <label class="m3-switch">
+              <input type="checkbox" id="toggle-vinyl-mode" ${localStorage.getItem('prism-art-style') !== 'square' ? 'checked' : ''}>
+              <span class="m3-switch-slider"></span>
+            </label>
           </div>
           <div class="settings-item" id="vinyl-speed-container" style="display: ${localStorage.getItem('prism-art-style') !== 'square' ? 'flex' : 'none'}; padding-top: 0;">
             <div class="settings-item-text" style="flex:1;">
@@ -247,9 +247,13 @@ document.getElementById('toggle-crossfade')?.addEventListener('change', (e) => {
   prismPlayer.setCrossfade(enabled);
 });
 
-document.getElementById('toggle-vinyl')?.addEventListener('change', (e) => {
+document.getElementById('toggle-vinyl-mode')?.addEventListener('change', (e) => {
   const enabled = (e.target as HTMLInputElement).checked;
-  localStorage.setItem('prism-vinyl', enabled ? 'true' : 'false');
+  localStorage.setItem('prism-art-style', enabled ? 'vinyl' : 'square');
+  const speedContainer = document.getElementById('vinyl-speed-container');
+  if (speedContainer) {
+    speedContainer.style.display = enabled ? 'flex' : 'none';
+  }
   // Re-trigger current state
   uiManager.updateVinylState(prismPlayer.getIsPlaying());
 });
