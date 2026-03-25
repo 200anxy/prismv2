@@ -83,8 +83,8 @@ export class UIManager {
         this.bindEvents();
         this.renderLibrary();
 
-        // Set initial history state
-        history.replaceState({ view: 'library' }, '');
+        // Set initial history state without hash
+        history.replaceState({ view: 'library' }, '', window.location.pathname);
     }
 
     private bindEvents() {
@@ -96,7 +96,7 @@ export class UIManager {
         // Settings Toggle
         document.getElementById('btn-settings')?.addEventListener('click', () => {
             this.settingsOverlay.classList.add('open');
-            history.pushState({ view: 'settings' }, '');
+            history.pushState({ view: 'settings' }, '', '#settings');
         });
         document.getElementById('btn-close-settings')?.addEventListener('click', () => {
             history.back();
@@ -123,7 +123,7 @@ export class UIManager {
         this.miniPlayer.addEventListener('click', (e) => {
             if ((e.target as HTMLElement).closest('.mini-player-controls')) return;
             this.fullPlayer.classList.add('open');
-            history.pushState({ view: 'fullplayer' }, '');
+            history.pushState({ view: 'fullplayer' }, '', '#fullplayer');
         });
 
         document.getElementById('btn-close-full')?.addEventListener('click', () => {
@@ -154,7 +154,7 @@ export class UIManager {
         document.getElementById('btn-open-queue')?.addEventListener('click', () => {
             this.renderQueue();
             this.queueOverlay.classList.add('open');
-            history.pushState({ view: 'queue' }, '');
+            history.pushState({ view: 'queue' }, '', '#queue');
         });
         document.getElementById('btn-close-queue')?.addEventListener('click', () => {
             history.back();
@@ -454,7 +454,7 @@ export class UIManager {
         playlists.forEach(p => {
             html += `
           <div class="m3-card" data-id="${p.id}" data-name="${p.name}">
-            <div class="m3-card-art">
+            <div class="m3-card-art playlist-grid-art" data-playlist-id="${p.id}">
                 <span class="material-symbols-rounded">folder</span>
             </div>
             <div class="m3-card-info">
@@ -474,6 +474,8 @@ export class UIManager {
 
         document.getElementById('btn-add-folder-fab')?.addEventListener('click', () => libraryManager.showDirectoryPicker());
 
+        this.attachLazyPlaylistGrid();
+
         const cards = this.viewLayer.querySelectorAll('.m3-card');
         cards.forEach(card => {
             card.addEventListener('click', () => {
@@ -481,7 +483,7 @@ export class UIManager {
                 const name = card.getAttribute('data-name')!;
                 this.topTitle.innerText = name;
                 document.getElementById('btn-library')!.style.opacity = '1';
-                history.pushState({ view: 'playlist', id }, '');
+                history.pushState({ view: 'playlist', id }, '', '#playlist');
                 this.renderPlaylist(id);
             });
         });
@@ -683,6 +685,60 @@ export class UIManager {
         arts.forEach(art => observer.observe(art));
     }
 
+    private attachLazyPlaylistGrid() {
+        const grids = this.viewLayer.querySelectorAll('.playlist-grid-art');
+        const observer = new IntersectionObserver((entries, obs) => {
+            entries.forEach(async entry => {
+                if (entry.isIntersecting) {
+                    const target = entry.target as HTMLElement;
+                    const pid = target.getAttribute('data-playlist-id');
+                    if (pid) {
+                        try {
+                            const tracks = await libraryManager.getTracksForPlaylist(pid);
+                            const artTracks = tracks.filter(t => t.hasArtwork && t.artworkBlob).slice(0, 4);
+                            
+                            if (artTracks.length > 0) {
+                                target.innerHTML = ''; // clear folder icon
+                                target.style.display = 'grid';
+                                target.style.gridTemplateColumns = artTracks.length > 1 ? '1fr 1fr' : '1fr';
+                                target.style.gridTemplateRows = artTracks.length > 1 ? '1fr 1fr' : '1fr';
+                                target.style.gap = '2px';
+                                target.style.padding = '0';
+                                target.style.overflow = 'hidden';
+                                target.style.backgroundColor = 'transparent';
+                                
+                                artTracks.forEach(t => {
+                                    const img = document.createElement('img');
+                                    img.src = URL.createObjectURL(t.artworkBlob!);
+                                    img.style.width = '100%';
+                                    img.style.height = '100%';
+                                    img.style.objectFit = 'cover';
+                                    target.appendChild(img);
+                                });
+                                
+                                // Fill remaining with solid color to keep grid structure
+                                if (artTracks.length > 1 && artTracks.length < 4) {
+                                    for(let i = artTracks.length; i < 4; i++) {
+                                        const div = document.createElement('div');
+                                        div.style.backgroundColor = 'var(--md-sys-color-surface-container-high)';
+                                        div.style.width = '100%';
+                                        div.style.height = '100%';
+                                        target.appendChild(div);
+                                    }
+                                }
+                            }
+                        } catch (e) {
+                            console.error('Failed to load playlist grid', e);
+                        }
+                    }
+                    obs.unobserve(target);
+                }
+            });
+        }, { root: this.viewLayer, rootMargin: '0px 0px 200px 0px' });
+        
+        grids.forEach(g => observer.observe(g));
+    }
+
     // --- Queue ---
     private renderQueue() {
         if (this.sortableUserQueue) {
@@ -734,7 +790,7 @@ export class UIManager {
                        <button class="icon-btn btn-remove-queue" data-uq-idx="${idx}" style="width: 32px; height: 32px;">
                           <span class="material-symbols-rounded" style="color:var(--md-sys-color-on-surface-variant); font-size: 20px;">close</span>
                        </button>
-                       <span class="material-symbols-rounded" style="color:var(--md-sys-color-on-surface-variant); cursor: grab; padding-left: 4px;">drag_handle</span>
+                       <span class="material-symbols-rounded drag-handle" style="color:var(--md-sys-color-on-surface-variant); cursor: grab; padding-left: 4px;">drag_handle</span>
                     </div>
                 </div>
               `;
@@ -750,13 +806,13 @@ export class UIManager {
                 html += `<div id="sortable-playlist-queue" style="display:flex; flex-direction:column;">`;
                 upcoming.forEach((track, idx) => {
                     html += `
-                    <div class="queue-item" data-pq-idx="${idx}" style="cursor: grab;">
+                    <div class="queue-item" data-pq-idx="${idx}">
                         <div style="flex:1; overflow:hidden; display:flex; flex-direction:column;" class="text-ellipsis">
                             <span style="font-size:0.9375rem; font-weight:400; color:var(--md-sys-color-on-background);">${track.title}</span>
                             <span style="font-size:0.75rem; font-weight:300; color:var(--md-sys-color-on-surface-variant);">${track.artist}</span>
                         </div>
                         <div class="queue-item-actions">
-                           <span class="material-symbols-rounded" style="color:var(--md-sys-color-on-surface-variant); cursor: grab;">drag_handle</span>
+                           <span class="material-symbols-rounded drag-handle" style="color:var(--md-sys-color-on-surface-variant); cursor: grab;">drag_handle</span>
                         </div>
                     </div>
                   `;
@@ -772,9 +828,11 @@ export class UIManager {
         if (el) {
             this.sortableUserQueue = Sortable.create(el, {
                 animation: 150,
-                handle: '.queue-item',
+                handle: '.drag-handle',
+                delay: 50,
+                delayOnTouchOnly: true,
                 onEnd: (evt) => {
-                    if (navigator.vibrate) navigator.vibrate(25);
+                    if (navigator.vibrate) navigator.vibrate([25]);
                     if (evt.oldIndex !== undefined && evt.newIndex !== undefined && evt.oldIndex !== evt.newIndex) {
                         const item = this.userQueue.splice(evt.oldIndex, 1)[0];
                         this.userQueue.splice(evt.newIndex, 0, item);
@@ -790,9 +848,11 @@ export class UIManager {
         if (playlistEl) {
             this.sortablePlaylistQueue = Sortable.create(playlistEl, {
                 animation: 150,
-                handle: '.queue-item',
+                handle: '.drag-handle',
+                delay: 50,
+                delayOnTouchOnly: true,
                 onEnd: (evt) => {
-                    if (navigator.vibrate) navigator.vibrate(25);
+                    if (navigator.vibrate) navigator.vibrate([25]);
                     if (evt.oldIndex !== undefined && evt.newIndex !== undefined && evt.oldIndex !== evt.newIndex) {
                         const realOldIdx = evt.oldIndex + this.currentTrackIndex + 1;
                         const realNewIdx = evt.newIndex + this.currentTrackIndex + 1;
@@ -811,7 +871,7 @@ export class UIManager {
         this.queueList.querySelectorAll('.btn-remove-queue').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                if (navigator.vibrate) navigator.vibrate(25);
+                if (navigator.vibrate) navigator.vibrate([25]);
                 const idx = parseInt(btn.getAttribute('data-uq-idx')!, 10);
                 this.userQueue.splice(idx, 1);
                 this.updatePreload();
