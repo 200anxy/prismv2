@@ -90,7 +90,12 @@ export class UIManager {
     private bindEvents() {
         // Nav
         document.getElementById('btn-library')?.addEventListener('click', () => {
-            history.back();
+             if (history.length > 1 && history.state?.view === 'playlist') {
+                 history.back();
+             } else {
+                 history.replaceState({ view: 'library' }, '', window.location.pathname);
+                 this.renderLibrary();
+             }
         });
 
         // Settings Toggle
@@ -199,9 +204,8 @@ export class UIManager {
                 return;
             }
             // If we're on a playlist view, go back to library
-            if (this.currentPlaylistId && state?.view === 'library') {
+            if (!state || state.view === 'library') {
                 this.renderLibrary();
-                this.currentPlaylistId = null;
                 return;
             }
         });
