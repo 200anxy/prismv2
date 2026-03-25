@@ -343,6 +343,26 @@ export class UIManager {
         return `${min}:${sec.toString().padStart(2, '0')}`;
     }
 
+    private blendHexWithBlack(hexColor: string, percentage: number): string {
+        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hexColor);
+        if (!result) return '#0a0a0a';
+        
+        const r = parseInt(result[1], 16);
+        const g = parseInt(result[2], 16);
+        const b = parseInt(result[3], 16);
+        
+        const mixR = Math.round(r * percentage + 10 * (1 - percentage));
+        const mixG = Math.round(g * percentage + 10 * (1 - percentage));
+        const mixB = Math.round(b * percentage + 10 * (1 - percentage));
+        
+        const toHex = (c: number) => {
+            const hex = c.toString(16);
+            return hex.length === 1 ? '0' + hex : hex;
+        };
+        
+        return `#${toHex(mixR)}${toHex(mixG)}${toHex(mixB)}`;
+    }
+
     private updatePlayerUI(track: TrackData) {
         this.nowPlayingTrack = track;
         this.miniPlayer.classList.remove('hidden');
@@ -372,10 +392,19 @@ export class UIManager {
         
         document.documentElement.style.setProperty('--accent-color', accent);
         
+        let metaTheme = document.querySelector('meta[name="theme-color"]');
+        if (!metaTheme) {
+            metaTheme = document.createElement('meta');
+            metaTheme.setAttribute('name', 'theme-color');
+            document.head.appendChild(metaTheme);
+        }
+
         if (ambientEnabled) {
             document.documentElement.style.setProperty('--md-sys-color-background', `color-mix(in srgb, ${accent} 8%, #0a0a0a)`);
+            metaTheme.setAttribute('content', this.blendHexWithBlack(accent, 0.15));
         } else {
             document.documentElement.style.setProperty('--md-sys-color-background', '#0a0a0a');
+            metaTheme.setAttribute('content', '#0a0a0a');
         }
         // Active Track Highlight
         document.querySelectorAll('.m3-list-item').forEach(el => el.classList.remove('active-track'));
