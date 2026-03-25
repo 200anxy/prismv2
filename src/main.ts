@@ -167,6 +167,18 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
         </div>
       </div>
       <div class="settings-group">
+        <h2>Tools</h2>
+        <div class="settings-card">
+          <div class="settings-item" id="btn-open-csv-importer">
+            <div class="settings-item-text">
+              <span>Spotify CSV Importer</span>
+              <small>Download playlists directly from YouTube</small>
+            </div>
+            <span class="material-symbols-rounded">cloud_download</span>
+          </div>
+        </div>
+      </div>
+      <div class="settings-group">
         <h2>About Prism</h2>
         <div class="settings-card">
           <div class="settings-item pointer-events-none">
@@ -180,6 +192,36 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
       </div>
     </div>
   </div>
+
+  <div class="settings-overlay" id="csv-overlay" style="z-index: 310;">
+    <div class="settings-nav">
+      <button class="icon-btn" id="btn-close-csv">
+        <span class="material-symbols-rounded">arrow_back</span>
+      </button>
+      <div class="title-large" style="margin-left: 16px;">CSV Importer</div>
+    </div>
+    <div class="settings-content" style="display: flex; flex-direction: column;">
+      <p style="color: var(--md-sys-color-on-surface-variant); font-size: 0.875rem; margin-bottom: 24px;">
+        Upload a Spotify CSV file to search and download tracks directly via public proxies. 
+        <br><i>Note: Uses free public APIs which may be unstable.</i>
+      </p>
+      
+      <div id="csv-dropzone" style="border: 2px dashed var(--md-sys-color-outline); border-radius: 16px; padding: 48px 16px; text-align: center; cursor: pointer; background: var(--md-sys-color-surface-container); transition: background 0.2s;">
+        <span class="material-symbols-rounded" style="font-size: 48px; color: var(--md-sys-color-primary);">upload_file</span>
+        <h3 style="margin-top: 16px;">Tap to select CSV</h3>
+        <p style="color: var(--md-sys-color-on-surface-variant); font-size: 0.875rem; margin-top: 8px;">format: Track Name, Artist Name</p>
+        <input type="file" id="csv-file-input" accept=".csv" style="display: none;" />
+      </div>
+
+      <div style="margin-top: 24px;">
+         <h3 id="csv-status-title" style="display:none; margin-bottom: 12px;">Downloads</h3>
+         <div id="csv-progress-list" style="display: flex; flex-direction: column; gap: 8px;">
+            <!-- Live download items injected here -->
+         </div>
+      </div>
+    </div>
+  </div>
+
 
   <div class="queue-overlay" id="queue-overlay">
     <div class="queue-handle-bar"><div class="queue-handle-pill"></div></div>

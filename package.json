@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "download": "node scripts/download_csv.js"
   },
   "devDependencies": {
     "@types/jsmediatags": "^3.9.6",

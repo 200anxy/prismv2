@@ -7,10 +7,11 @@ export interface TrackData {
   album: string;
   duration?: number;
   playlistId: string; // the ID of the folder it came from
-  fileRef: File | FileSystemFileHandle; // Handle to actual file
-  hasArtwork: boolean;
-  artworkBlob?: Blob; 
-  dominantColor?: string; // Hex color from node-vibrant
+  fileRef: File | FileSystemFileHandle; //  fileHandle?: FileSystemFileHandle;
+  hasArtwork?: boolean;
+  artworkBlob?: Blob; // Storing actual Blob
+  dominantColor?: string; // e.g. 'rgb(10, 20, 30)'
+  dateAdded?: number; // epoch timestamp
 }
 
 export interface PlaylistData {

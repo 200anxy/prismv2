@@ -46,7 +46,8 @@ export class LibraryManager {
           fileRef: file,
           hasArtwork: meta.hasArtwork,
           artworkBlob: meta.artworkBlob,
-          dominantColor: meta.dominantColor
+          dominantColor: meta.dominantColor,
+          dateAdded: file.lastModified || Date.now()
         };
 
         await addTrack(trackData);

@@ -160,10 +160,33 @@ export class UIManager {
             history.back();
         });
 
+        // CSV Importer Overlay
+        const csvOverlay = document.getElementById('csv-overlay');
+        document.getElementById('btn-open-csv-importer')?.addEventListener('click', () => {
+            csvOverlay?.classList.add('open');
+            history.pushState({ view: 'csv' }, '', '#csvimporter');
+        });
+        document.getElementById('btn-close-csv')?.addEventListener('click', () => {
+            history.back();
+        });
+
+        const csvInput = document.getElementById('csv-file-input') as HTMLInputElement;
+        document.getElementById('csv-dropzone')?.addEventListener('click', () => csvInput?.click());
+        csvInput?.addEventListener('change', async (e) => {
+            const file = (e.target as HTMLInputElement).files?.[0];
+            if (file) {
+                await this.processCSV(file);
+            }
+        });
+
         // --- History API: Android Back Navigation ---
         window.addEventListener('popstate', (e) => {
             const state = e.state as { view?: string } | null;
             // Close overlays in priority order
+            if (document.getElementById('csv-overlay')?.classList.contains('open')) {
+                document.getElementById('csv-overlay')?.classList.remove('open');
+                return;
+            }
             if (this.queueOverlay.classList.contains('open')) {
                 this.queueOverlay.classList.remove('open');
                 return;
@@ -509,10 +532,13 @@ export class UIManager {
            <button class="sort-chip ${this.currentSortMode.startsWith('artist') ? 'active' : ''}" data-sort="artist">
               Artist <span class="material-symbols-rounded" style="font-size:16px;">${this.currentSortMode === 'artist-desc' ? 'arrow_downward' : 'arrow_upward'}</span>
            </button>
-           <button class="sort-chip ${this.currentSortMode.startsWith('duration') ? 'active' : ''}" data-sort="duration">
-              Duration <span class="material-symbols-rounded" style="font-size:16px;">${this.currentSortMode === 'duration-desc' ? 'arrow_downward' : 'arrow_upward'}</span>
-           </button>
-        </div>
+            <button class="sort-chip ${this.currentSortMode.startsWith('duration') ? 'active' : ''}" data-sort="duration">
+               Duration <span class="material-symbols-rounded" style="font-size:16px;">${this.currentSortMode === 'duration-desc' ? 'arrow_downward' : 'arrow_upward'}</span>
+            </button>
+            <button class="sort-chip ${this.currentSortMode.startsWith('date') ? 'active' : ''}" data-sort="date">
+               Date Added <span class="material-symbols-rounded" style="font-size:16px;">${this.currentSortMode === 'date-desc' ? 'arrow_downward' : 'arrow_upward'}</span>
+            </button>
+         </div>
         <div style="display: flex; flex-direction: column;">
       `;
 
@@ -524,6 +550,8 @@ export class UIManager {
         else if (this.currentSortMode === 'artist-desc') sortedTracks.sort((a, b) => b.artist.localeCompare(a.artist));
         else if (this.currentSortMode === 'duration-asc') sortedTracks.sort((a, b) => (a.duration || 0) - (b.duration || 0));
         else if (this.currentSortMode === 'duration-desc') sortedTracks.sort((a, b) => (b.duration || 0) - (a.duration || 0));
+        else if (this.currentSortMode === 'date-asc') sortedTracks.sort((a, b) => (a.dateAdded || 0) - (b.dateAdded || 0));
+        else if (this.currentSortMode === 'date-desc') sortedTracks.sort((a, b) => (b.dateAdded || 0) - (a.dateAdded || 0));
 
         sortedTracks.forEach((track, idx) => {
             html += `
@@ -878,6 +906,94 @@ export class UIManager {
                 this.renderQueue();
             });
         });
+    }
+
+    // --- CSV Downloader Logic ---
+    private async processCSV(file: File) {
+        document.getElementById('csv-status-title')!.style.display = 'block';
+        const listEl = document.getElementById('csv-progress-list')!;
+        listEl.innerHTML = '';
+        
+        try {
+            const text = await file.text();
+            const lines = text.split('\\n').map(l => l.trim()).filter(l => l);
+            const headers = lines[0].split(',').map(h => h.trim());
+            
+            const tracks = [];
+            for (let i = 1; i < lines.length; i++) {
+                const line = lines[i];
+                if (!line) continue;
+                const values = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+                const obj: any = {};
+                headers.forEach((header, index) => {
+                    let val = values[index] || '';
+                    if (val.startsWith('"') && val.endsWith('"')) {
+                        val = val.substring(1, val.length - 1);
+                    }
+                    obj[header] = val;
+                });
+                tracks.push(obj);
+            }
+
+            for(let i = 0; i < tracks.length; i++) {
+                const tr = tracks[i];
+                const title = tr['Track Name'] || tr['Track'] || tr['title'];
+                const artist = tr['Artist Name(s)'] || tr['Artist'] || tr['artist'];
+                
+                if (!title) continue;
+
+                const query = `${title} ${artist || ''} audio`.trim();
+                
+                const itemDiv = document.createElement('div');
+                itemDiv.style.padding = '12px';
+                itemDiv.style.borderRadius = '8px';
+                itemDiv.style.background = 'var(--md-sys-color-surface-container-high)';
+                itemDiv.innerHTML = `<span style="font-weight:bold;">${title}</span> - ${artist || ''} <br><small style="color:var(--md-sys-color-primary)">Searching...</small>`;
+                listEl.appendChild(itemDiv);
+
+                try {
+                    // 1. Search using a public Invidious instance (Puffyan or alternative)
+                    const searchRes = await fetch(`https://vid.puffyan.us/api/v1/search?q=${encodeURIComponent(query)}`);
+                    const searchData = await searchRes.json();
+                    if (!searchData || searchData.length === 0) throw new Error("No video found");
+                    const videoId = searchData[0].videoId;
+
+                    itemDiv.innerHTML = `<span style="font-weight:bold;">${title}</span> - ${artist || ''} <br><small style="color:orange">Downloading Audio...</small>`;
+                    
+                    // 2. We use corsproxy to fetch Cobalt directly to bypass their strict CORS/DPoP policies if possible, 
+                    // or just use a generic direct piped audio stream proxy: API provided by Piped
+                    const streamRes = await fetch(`https://pipedapi.kavin.rocks/streams/${videoId}`);
+                    const streamData = await streamRes.json();
+                    
+                    const audioStream = streamData.audioStreams?.find((s: any) => s.mimeType.includes('mp4') || s.mimeType.includes('webm'));
+                    if (!audioStream) throw new Error("No audio stream available");
+
+                    itemDiv.innerHTML = `<span style="font-weight:bold;">${title}</span> - ${artist || ''} <br><small style="color:orange">Fetching Blob...</small>`;
+                    
+                    // 3. Download the actual audio blob through CORS Proxy (since googlevideo blocks origins)
+                    const blobRes = await fetch(`https://corsproxy.io/?url=${encodeURIComponent(audioStream.url)}`);
+                    const blob = await blobRes.blob();
+                    
+                    // 4. Create a File and hand it to Prism's library manager seamlessly
+                    const mp3File = new File([blob], `${title} - ${artist}.mp3`, { type: 'audio/mpeg' });
+                    
+                    // Put in a dedicated folder name
+                    await libraryManager.processFiles([mp3File], 'CSV Imports');
+                    
+                    itemDiv.innerHTML = `<span style="font-weight:bold;">${title}</span> - ${artist || ''} <br><small style="color:green">✅ Saved to Library</small>`;
+                    
+                } catch(e: any) {
+                    itemDiv.innerHTML = `<span style="font-weight:bold;">${title}</span> - ${artist || ''} <br><small style="color:red">❌ Failed: ${e.message}</small>`;
+                }
+                
+                // Delay to be gentle on public APIs
+                await new Promise(r => setTimeout(r, 2000));
+            }
+
+        } catch(e: any) {
+            console.error("CSV Parse Error", e);
+            listEl.innerHTML = `<div style="color:red;">Error reading CSV: ${e.message}</div>`;
+        }
     }
 
     // --- Settings UI API ---
