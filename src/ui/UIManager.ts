@@ -42,7 +42,8 @@ export class UIManager {
     private isShuffle: boolean = false;
     private isRepeat: boolean = false;
     private isScrubbing: boolean = false;
-    private sortableInstance: Sortable | null = null;
+    private sortableUserQueue: Sortable | null = null;
+    private sortablePlaylistQueue: Sortable | null = null;
     private currentSortMode: string = 'default';
 
     constructor() { }
@@ -230,7 +231,7 @@ export class UIManager {
             this.isScrubbing = true;
             const pct = parseFloat(this.progressSlider.value);
             this.progressSlider.style.setProperty('--slider-fill', `${pct}%`);
-            if (navigator.vibrate) navigator.vibrate(5);
+            if (navigator.vibrate) navigator.vibrate(25);
         });
 
         this.progressSlider.addEventListener('change', () => {
@@ -619,7 +620,7 @@ export class UIManager {
                 const idx = parseInt(btn.getAttribute('data-idx')!, 10);
                 this.userQueue.push(sortedTracks[idx]);
                 this.updatePreload(); // ensure new queue item is preloaded for gapless
-                if (navigator.vibrate) navigator.vibrate(10);
+                if (navigator.vibrate) navigator.vibrate(25);
                 if (this.queueOverlay.classList.contains('open')) {
                     this.renderQueue();
                 }
@@ -650,7 +651,7 @@ export class UIManager {
         items.forEach(item => {
             item.addEventListener('contextmenu', (e) => {
                 e.preventDefault(); // Prevent native context menu
-                if (navigator.vibrate) navigator.vibrate(20);
+                if (navigator.vibrate) navigator.vibrate(30);
                 item.classList.toggle('show-delete');
             });
         });
@@ -684,9 +685,13 @@ export class UIManager {
 
     // --- Queue ---
     private renderQueue() {
-        if (this.sortableInstance) {
-            this.sortableInstance.destroy();
-            this.sortableInstance = null;
+        if (this.sortableUserQueue) {
+            this.sortableUserQueue.destroy();
+            this.sortableUserQueue = null;
+        }
+        if (this.sortablePlaylistQueue) {
+            this.sortablePlaylistQueue.destroy();
+            this.sortablePlaylistQueue = null;
         }
 
         const hasUserQueue = this.userQueue.length > 0;
@@ -742,16 +747,21 @@ export class UIManager {
             const upcoming = this.currentPlaylistTracks.slice(this.currentTrackIndex + 1);
             if (upcoming.length > 0) {
                 html += `<div class="library-section-title" style="margin-top:20px;">Next from Playlist</div>`;
-                upcoming.forEach(track => {
+                html += `<div id="sortable-playlist-queue" style="display:flex; flex-direction:column;">`;
+                upcoming.forEach((track, idx) => {
                     html += `
-                    <div class="queue-item">
+                    <div class="queue-item" data-pq-idx="${idx}" style="cursor: grab;">
                         <div style="flex:1; overflow:hidden; display:flex; flex-direction:column;" class="text-ellipsis">
                             <span style="font-size:0.9375rem; font-weight:400; color:var(--md-sys-color-on-background);">${track.title}</span>
                             <span style="font-size:0.75rem; font-weight:300; color:var(--md-sys-color-on-surface-variant);">${track.artist}</span>
                         </div>
+                        <div class="queue-item-actions">
+                           <span class="material-symbols-rounded" style="color:var(--md-sys-color-on-surface-variant); cursor: grab;">drag_handle</span>
+                        </div>
                     </div>
                   `;
                 });
+                html += `</div>`;
             }
         }
 
@@ -760,14 +770,36 @@ export class UIManager {
         // Bind drag on user queue only
         const el = document.getElementById('sortable-user-queue');
         if (el) {
-            this.sortableInstance = Sortable.create(el, {
+            this.sortableUserQueue = Sortable.create(el, {
                 animation: 150,
                 handle: '.queue-item',
                 onEnd: (evt) => {
-                    if (navigator.vibrate) navigator.vibrate(10);
+                    if (navigator.vibrate) navigator.vibrate(25);
                     if (evt.oldIndex !== undefined && evt.newIndex !== undefined && evt.oldIndex !== evt.newIndex) {
                         const item = this.userQueue.splice(evt.oldIndex, 1)[0];
                         this.userQueue.splice(evt.newIndex, 0, item);
+                        this.updatePreload();
+                        this.renderQueue();
+                    }
+                }
+            });
+        }
+
+        // Bind drag on playlist queue
+        const playlistEl = document.getElementById('sortable-playlist-queue');
+        if (playlistEl) {
+            this.sortablePlaylistQueue = Sortable.create(playlistEl, {
+                animation: 150,
+                handle: '.queue-item',
+                onEnd: (evt) => {
+                    if (navigator.vibrate) navigator.vibrate(25);
+                    if (evt.oldIndex !== undefined && evt.newIndex !== undefined && evt.oldIndex !== evt.newIndex) {
+                        const realOldIdx = evt.oldIndex + this.currentTrackIndex + 1;
+                        const realNewIdx = evt.newIndex + this.currentTrackIndex + 1;
+                        
+                        const item = this.currentPlaylistTracks.splice(realOldIdx, 1)[0];
+                        this.currentPlaylistTracks.splice(realNewIdx, 0, item);
+                        
                         this.updatePreload();
                         this.renderQueue();
                     }
@@ -779,7 +811,7 @@ export class UIManager {
         this.queueList.querySelectorAll('.btn-remove-queue').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                if (navigator.vibrate) navigator.vibrate(10);
+                if (navigator.vibrate) navigator.vibrate(25);
                 const idx = parseInt(btn.getAttribute('data-uq-idx')!, 10);
                 this.userQueue.splice(idx, 1);
                 this.updatePreload();
