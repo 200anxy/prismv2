@@ -537,13 +537,9 @@ export class UIManager {
                <div class="playlist-header-art playlist-grid-art" data-playlist-id="${playlistId}" style="width:100%; height:100%; border-radius:12px; background:var(--md-sys-color-surface-container-high); display:flex; align-items:center; justify-content:center; overflow:hidden;">
                    ${playlist?.customArtworkBlob ? `<img src="${URL.createObjectURL(playlist.customArtworkBlob)}" style="width:100%; height:100%; object-fit:cover;">` : `<span class="material-symbols-rounded" style="color:var(--md-sys-color-on-surface-variant);">folder</span>`}
                </div>
-               <button class="icon-btn" id="btn-upload-playlist-art" style="position:absolute; top:-8px; right:-8px; background:var(--md-sys-color-secondary-container); color:var(--md-sys-color-on-secondary-container); width:28px; height:28px; border-radius:50%; box-shadow:0 2px 4px rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:10;">
-                   <span class="material-symbols-rounded" style="font-size:14px;">edit</span>
-               </button>
-               ${playlist?.customArtworkBlob ? `<button class="icon-btn" id="btn-remove-playlist-art" style="position:absolute; top:-8px; left:-8px; background:var(--md-sys-color-error); color:var(--md-sys-color-on-error); width:28px; height:28px; border-radius:50%; box-shadow:0 2px 4px rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:10;"><span class="material-symbols-rounded" style="font-size:14px;">close</span></button>` : ''}
            </div>
            
-           <div style="display:flex; flex-direction:column; gap:8px;">
+           <div style="display:flex; flex-direction:column; gap:12px;">
                <div style="display:flex; align-items:center; gap:8px;">
                    <button class="fab-play fab-play-huge" id="btn-playlist-play" style="width: 56px; height: 56px; border-radius: 16px;">
                       <span class="material-symbols-rounded" style="font-size: 32px">play_arrow</span>
@@ -552,37 +548,55 @@ export class UIManager {
                       <span class="material-symbols-rounded">shuffle</span> Shuffle
                    </button>
                </div>
+               <div style="display:flex; align-items:center; gap:8px;">
+                   <button class="extended-fab" id="btn-upload-playlist-art" style="padding: 6px 12px; background: transparent; color: var(--md-sys-color-on-surface); border: 1px solid var(--md-sys-color-outline); font-size: 13px; height: 32px;">
+                      <span class="material-symbols-rounded" style="font-size:16px; margin-right:4px;">edit</span> Edit Cover
+                   </button>
+                   ${playlist?.customArtworkBlob ? `<button class="extended-fab" id="btn-remove-playlist-art" style="padding: 6px 12px; background: transparent; border: 1px solid var(--md-sys-color-error); color: var(--md-sys-color-error); font-size: 13px; height: 32px;">
+                      <span class="material-symbols-rounded" style="font-size:16px; margin-right:4px;">delete</span> Remove
+                   </button>` : ''}
+               </div>
            </div>
         </div>
         <input type="file" id="playlist-art-input" accept="image/*" style="display:none;">
 
         <div class="sort-chip-bar">
-           <button class="sort-chip ${this.currentSortMode.startsWith('title') ? 'active' : ''}" data-sort="title">
+           <button class="sort-chip id-sort-title ${this.currentSortMode.startsWith('title') ? 'active' : ''}" data-sort="title">
               Title <span class="material-symbols-rounded" style="font-size:16px;">${this.currentSortMode === 'title-desc' ? 'arrow_downward' : 'arrow_upward'}</span>
            </button>
-           <button class="sort-chip ${this.currentSortMode.startsWith('artist') ? 'active' : ''}" data-sort="artist">
+           <button class="sort-chip id-sort-artist ${this.currentSortMode.startsWith('artist') ? 'active' : ''}" data-sort="artist">
               Artist <span class="material-symbols-rounded" style="font-size:16px;">${this.currentSortMode === 'artist-desc' ? 'arrow_downward' : 'arrow_upward'}</span>
            </button>
-            <button class="sort-chip ${this.currentSortMode.startsWith('duration') ? 'active' : ''}" data-sort="duration">
+            <button class="sort-chip id-sort-duration ${this.currentSortMode.startsWith('duration') ? 'active' : ''}" data-sort="duration">
                Duration <span class="material-symbols-rounded" style="font-size:16px;">${this.currentSortMode === 'duration-desc' ? 'arrow_downward' : 'arrow_upward'}</span>
             </button>
-            <button class="sort-chip ${this.currentSortMode.startsWith('date') ? 'active' : ''}" data-sort="date">
+            <button class="sort-chip id-sort-date ${this.currentSortMode.startsWith('date') ? 'active' : ''}" data-sort="date">
                Date Added <span class="material-symbols-rounded" style="font-size:16px;">${this.currentSortMode === 'date-desc' ? 'arrow_downward' : 'arrow_upward'}</span>
             </button>
          </div>
-        <div style="display: flex; flex-direction: column;">
+        <div id="playlist-tracks-container" style="display: flex; flex-direction: column;">
       `;
 
-        // Sort tracks
-        const sortedTracks = [...tracks];
-        if (this.currentSortMode === 'title-asc') sortedTracks.sort((a, b) => a.title.localeCompare(b.title));
-        else if (this.currentSortMode === 'title-desc') sortedTracks.sort((a, b) => b.title.localeCompare(a.title));
-        else if (this.currentSortMode === 'artist-asc') sortedTracks.sort((a, b) => a.artist.localeCompare(b.artist));
-        else if (this.currentSortMode === 'artist-desc') sortedTracks.sort((a, b) => b.artist.localeCompare(a.artist));
-        else if (this.currentSortMode === 'duration-asc') sortedTracks.sort((a, b) => (a.duration || 0) - (b.duration || 0));
-        else if (this.currentSortMode === 'duration-desc') sortedTracks.sort((a, b) => (b.duration || 0) - (a.duration || 0));
-        else if (this.currentSortMode === 'date-asc') sortedTracks.sort((a, b) => (a.dateAdded || 0) - (b.dateAdded || 0));
-        else if (this.currentSortMode === 'date-desc') sortedTracks.sort((a, b) => (b.dateAdded || 0) - (a.dateAdded || 0));
+        // Sort tracks iteratively
+        const getSortVal = (t: import('../storage/db.js').TrackData) => {
+             if (t.duration && t.duration > 0) return t.duration * 1000;
+             if (t.fileRef && 'size' in t.fileRef) return (t.fileRef as any).size as number;
+             return Math.max(t.dateAdded || 0, 0); // fallback
+        };
+
+        let sortedTracks = [...tracks];
+        const performSort = () => {
+            if (this.currentSortMode === 'title-asc') sortedTracks.sort((a, b) => a.title.localeCompare(b.title));
+            else if (this.currentSortMode === 'title-desc') sortedTracks.sort((a, b) => b.title.localeCompare(a.title));
+            else if (this.currentSortMode === 'artist-asc') sortedTracks.sort((a, b) => a.artist.localeCompare(b.artist));
+            else if (this.currentSortMode === 'artist-desc') sortedTracks.sort((a, b) => b.artist.localeCompare(a.artist));
+            else if (this.currentSortMode === 'duration-asc') sortedTracks.sort((a, b) => getSortVal(a) - getSortVal(b));
+            else if (this.currentSortMode === 'duration-desc') sortedTracks.sort((a, b) => getSortVal(b) - getSortVal(a));
+            else if (this.currentSortMode === 'date-asc') sortedTracks.sort((a, b) => (a.dateAdded || 0) - (b.dateAdded || 0));
+            else if (this.currentSortMode === 'date-desc') sortedTracks.sort((a, b) => (b.dateAdded || 0) - (a.dateAdded || 0));
+            else sortedTracks = [...tracks];
+        };
+        performSort();
 
         sortedTracks.forEach((track, idx) => {
             html += `
@@ -608,10 +622,12 @@ export class UIManager {
         html += `</div>`;
         this.viewLayer.innerHTML = html;
 
-        // Sort chip handlers
+        // Sort chip handlers (Inline DOM reflow to prevent flash)
         this.viewLayer.querySelectorAll('.sort-chip').forEach(chip => {
             chip.addEventListener('click', () => {
                 const field = chip.getAttribute('data-sort')!;
+                if (navigator.vibrate) navigator.vibrate(5);
+                
                 if (this.currentSortMode === `${field}-asc`) {
                     this.currentSortMode = `${field}-desc`;
                 } else if (this.currentSortMode === `${field}-desc`) {
@@ -619,7 +635,40 @@ export class UIManager {
                 } else {
                     this.currentSortMode = `${field}-asc`;
                 }
-                this.renderPlaylist(playlistId);
+                
+                // Visually update chips without fully rerendering viewLayer
+                this.viewLayer.querySelectorAll('.sort-chip').forEach(c => {
+                    c.classList.remove('active');
+                    const cField = c.getAttribute('data-sort');
+                    let text = cField?.charAt(0).toUpperCase() + cField?.substring(1)!;
+                    if (cField === 'date') text = 'Date Added';
+                    
+                    if (this.currentSortMode.startsWith(cField!)) {
+                        c.classList.add('active');
+                        c.innerHTML = `${text} <span class="material-symbols-rounded" style="font-size:16px;">${this.currentSortMode.endsWith('desc') ? 'arrow_downward' : 'arrow_upward'}</span>`;
+                    } else {
+                        c.innerHTML = `${text} <span class="material-symbols-rounded" style="font-size:16px;">arrow_upward</span>`;
+                    }
+                });
+                
+                // Update internal array bindings
+                performSort();
+                
+                // Reflow DOM nodes
+                const container = this.viewLayer.querySelector('#playlist-tracks-container');
+                if (container) {
+                    const fragment = document.createDocumentFragment();
+                    sortedTracks.forEach((track, idx) => {
+                        const elem = container.querySelector(`.m3-list-item[data-trackid="${track.id}"]`);
+                        if (elem) {
+                            elem.setAttribute('data-idx', idx.toString());
+                            elem.querySelector('.btn-add-queue')?.setAttribute('data-idx', idx.toString());
+                            elem.querySelector('.btn-delete-track')?.setAttribute('data-idx', idx.toString());
+                            fragment.appendChild(elem); // Moves it dynamically
+                        }
+                    });
+                    container.appendChild(fragment);
+                }
             });
         });
 
